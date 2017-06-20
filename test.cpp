@@ -11,12 +11,7 @@
 
 #include "test_container.h"
 
-void draw_test();
-
-/* Convert r,g,b arguments to the associated pixel color */
-inline uint32_t pixel_color(uint8_t r, uint8_t g, uint8_t b, struct fb_var_screeninfo *vinfo) {
-	return static_cast<uint32_t>(r<<vinfo->red.offset | g<<vinfo->green.offset | b<<vinfo->blue.offset);
-}
+litehtml::uint_ptr get_drawable(struct fb_fix_screeninfo *_finfo, struct fb_var_screeninfo *_vinfo);
 
 int main(int argc, char* argv[]) {
 	if (argc!=2) {
@@ -30,33 +25,36 @@ int main(int argc, char* argv[]) {
 		buffer << t.rdbuf();
 		std::cout << buffer.str() << std::endl;
 
-		/* Print the contents of the framebuffer before editing */
-		// std::ifstream t2("/dev/fb0");
-		// buffer << t2.rdbuf();
-		// std::cout << buffer.str();
-		// std::cout << std::endl << "----------------------------------------------" << std::endl;
+		/* Get references to the framebuffer to work with */
+		struct fb_fix_screeninfo finfo;
+		struct fb_var_screeninfo vinfo;
+		litehtml::uint_ptr hdc = get_drawable(&finfo, &vinfo);
 
-		/* Edit the framebuffer and draw to the screen */
-		draw_test();
-
-		/* Print the contents of the framebuffer after editing */
-		// std::ifstream t3("/dev/fb0");
-		// buffer << t3.rdbuf();
-		// std::cout << buffer.str();
-		// std::cout << std::endl << "----------------------------------------------" << std::endl;
-
-		std::cout << std::endl;
+		test_container painter(&finfo, &vinfo);
+		litehtml::context context;
 
 		/* Start litehtml rendering
 		   See: https://github.com/litehtml/litehtml/wiki/How-to-use-litehtml */
-		test_container painter;
-		litehtml::context context;
-
-		/* TODO: Finish this after test_container is implemented */
 		std::cout << "createFromString" << std::endl;
-		litehtml::document::createFromString(buffer.str().c_str(), &painter, &context);
+		litehtml::document::ptr doc = litehtml::document::createFromString(buffer.str().c_str(), &painter, &context);
 		std::cout << "load_master_stylesheet" << std::endl;
 		context.load_master_stylesheet(_t("html,div,body {display:block;} head,style {display:none;}"));
+
+		/* Render the screen*/
+		doc->render(1000);
+		doc->draw(hdc,0,0,0);
+
+		int tty_fd = open("/dev/tty0", O_RDWR);
+		ioctl(tty_fd, KDSETMODE, KD_GRAPHICS);
+
+		/* Hold the rendered screen for 2 seconds*/
+		struct timespec tim, tim2;
+		tim.tv_sec = 2;
+		tim.tv_nsec = 0;
+		if (nanosleep(&tim, &tim2)<0)
+			std::cout << "nanosleep failed!" << std::endl;
+
+		ioctl(tty_fd, KDSETMODE, KD_TEXT);
 
 		std::cout << "Completed" << std::endl;
 	}
@@ -64,13 +62,10 @@ int main(int argc, char* argv[]) {
 	return 0;
 }
 
-/* Sample to show that fb drawing works
-   See: http://betteros.org/tut/graphics1.php */
-void draw_test() {
+/* Get fb0 as a drawable object */
+litehtml::uint_ptr get_drawable(struct fb_fix_screeninfo *_finfo, struct fb_var_screeninfo *_vinfo) {
 	struct fb_fix_screeninfo finfo;
 	struct fb_var_screeninfo vinfo;
-
-	int tty_fd = open("/dev/tty0", O_RDWR);
 
 	int fb_fd = open("/dev/fb0", O_RDWR);
 	ioctl(fb_fd, FBIOGET_FSCREENINFO, &finfo);
@@ -81,26 +76,10 @@ void draw_test() {
 	ioctl(fb_fd, FBIOGET_VSCREENINFO, &vinfo);
 
 	long screensize = vinfo.yres_virtual* finfo.line_length;
-	std::cout << "Screen size: " << screensize << std::endl;
-
 	uint8_t* fbp = static_cast<uint8_t*>(mmap(0, screensize, PROT_READ|PROT_WRITE, MAP_SHARED, fb_fd, off_t(0)));
 
-	long x, y;
+	*_finfo = finfo;
+	*_vinfo = vinfo;
 
-	for (x = 0; x < vinfo.xres; x++)
-		for (y = 0; y < vinfo.yres; y++) {
-			long location = (x+vinfo.xoffset)*(vinfo.bits_per_pixel/8) + (y+vinfo.yoffset)*finfo.line_length;
-			*(reinterpret_cast<uint32_t*>(fbp+location)) = pixel_color(0xFF, 0x0, 0xFF, &vinfo);
-		}
-
-	ioctl(tty_fd, KDSETMODE, KD_GRAPHICS);
-
-
-	struct timespec tim, tim2;
-	tim.tv_sec = 2;
-	tim.tv_nsec = 0;
-	if (nanosleep(&tim, &tim2)<0)
-		std::cout << "nanosleep failed!" << std::endl;
-
-	ioctl(tty_fd, KDSETMODE, KD_TEXT);
+	return fbp;
 }

@@ -4,12 +4,18 @@
 
 /* TODO: All this */
 
-test_container::test_container(void){
+test_container::test_container(struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo){
 	std::cout << "ctor test_container" << std::endl;
+    m_finfo = finfo;
+    m_vinfo = vinfo;
 }
 
 test_container::~test_container(void){
 	std::cout << "dtor ~test_container" << std::endl;
+}
+
+inline uint32_t test_container::pixel_color(uint8_t r, uint8_t g, uint8_t b, struct fb_var_screeninfo *vinfo) {
+    return static_cast<uint32_t>(r<<vinfo->red.offset | g<<vinfo->green.offset | b<<vinfo->blue.offset);
 }
 
 litehtml::uint_ptr test_container::create_font(const litehtml::tchar_t* faceName, int size, int weight, litehtml::font_style italic, unsigned int decoration, litehtml::font_metrics* fm){
@@ -27,22 +33,32 @@ int test_container::text_width(const litehtml::tchar_t* text, litehtml::uint_ptr
 }
 
 void test_container::draw_text(litehtml::uint_ptr hdc, const litehtml::tchar_t* text, litehtml::uint_ptr hFont, litehtml::web_color color, const litehtml::position& pos){
-	std::cout << "draw_text" << std::endl;
+	std::cout << "draw_text: " << text << std::endl;
+
+    /* Simply fill screen with white to show it's working*/
+    long x, y;
+
+    for (x = 0; x < m_vinfo->xres; x++) {
+        for (y = 0; y < m_vinfo->yres; y++) {
+            long location = (x+m_vinfo->xoffset)*(m_vinfo->bits_per_pixel/8) + (y+m_vinfo->yoffset)*m_finfo->line_length;
+            *(reinterpret_cast<uint32_t*>(hdc+location)) = pixel_color(0xFF, 0xFF, 0xFF, m_vinfo);
+        }
+    }
 }
 
 int test_container::pt_to_px(int pt){
-	std::cout << "pt_to_px" << std::endl;
-	return 0;
+	std::cout << "pt_to_px: " << pt << std::endl;
+	return pt;
 }
 
 int test_container::get_default_font_size() const{
 	std::cout << "get_default_font_size" << std::endl;
-	return 0;
+	return 16;
 }
 
 const litehtml::tchar_t* test_container::get_default_font_name() const{
 	std::cout << "get_default_font_name" << std::endl;
-	return 0;
+    return "Times New Roman";
 }
 
 void test_container::draw_list_marker(litehtml::uint_ptr hdc, const litehtml::list_marker& marker){

@@ -1,9 +1,16 @@
+#include <linux/fb.h>
 #include "litehtml.h"
 
 class test_container : public litehtml::document_container {
 public:
-	test_container(void);
+	struct fb_fix_screeninfo* m_finfo;
+	struct fb_var_screeninfo* m_vinfo;
+
+	// test_container(void);
+	test_container(struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo);
 	~test_container(void);
+
+	inline uint32_t pixel_color(uint8_t r, uint8_t g, uint8_t b, struct fb_var_screeninfo *vinfo);
 
 	/* From abstract class "litehtml::document_container" in "litehtml/src/html.h"
 	   see also: https://github.com/litehtml/litehtml/wiki/document_container */
