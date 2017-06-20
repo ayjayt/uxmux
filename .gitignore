@@ -1,0 +1,6 @@
+# C extensions
+*.o
+
+# Distribution / packaging
+build/
+lib/
