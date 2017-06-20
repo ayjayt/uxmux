@@ -11,7 +11,7 @@
 
 #include "test_container.h"
 
-void draw_test(bool force_show);
+void draw_test();
 
 /* Convert r,g,b arguments to the associated pixel color */
 inline uint32_t pixel_color(uint8_t r, uint8_t g, uint8_t b, struct fb_var_screeninfo *vinfo) {
@@ -19,8 +19,8 @@ inline uint32_t pixel_color(uint8_t r, uint8_t g, uint8_t b, struct fb_var_scree
 }
 
 int main(int argc, char* argv[]) {
-	if (argc<2 || argc>3) {
-		std::cout << "usage:" << argv[0] << " <filename> [--force-show]" << std::endl;
+	if (argc!=2) {
+		std::cout << "usage:" << argv[0] << " <filename>" << std::endl;
 	} else {
 		/* Read the given file and print its contents to the screen */
 		std::cout << "Reading file " << argv[1] << " as HTML:" << std::endl << std::endl;
@@ -37,7 +37,7 @@ int main(int argc, char* argv[]) {
 		// std::cout << std::endl << "----------------------------------------------" << std::endl;
 
 		/* Edit the framebuffer and draw to the screen */
-		draw_test(argc==3 && (strcmp(argv[2], "-f")==0 || strcmp(argv[2], "--force-show")==0));
+		draw_test();
 
 		/* Print the contents of the framebuffer after editing */
 		// std::ifstream t3("/dev/fb0");
@@ -66,15 +66,11 @@ int main(int argc, char* argv[]) {
 
 /* Sample to show that fb drawing works
    See: http://betteros.org/tut/graphics1.php */
-void draw_test(bool force_show) {
+void draw_test() {
 	struct fb_fix_screeninfo finfo;
 	struct fb_var_screeninfo vinfo;
 
 	int tty_fd = open("/dev/tty0", O_RDWR);
-	if (force_show) {
-		ioctl(tty_fd, KDSETMODE, KD_GRAPHICS);
-		ioctl(tty_fd, KDSETMODE, KD_TEXT);
-	}
 
 	int fb_fd = open("/dev/fb0", O_RDWR);
 	ioctl(fb_fd, FBIOGET_FSCREENINFO, &finfo);
@@ -97,8 +93,7 @@ void draw_test(bool force_show) {
 			*(reinterpret_cast<uint32_t*>(fbp+location)) = pixel_color(0xFF, 0x0, 0xFF, &vinfo);
 		}
 
-	if (force_show)
-		ioctl(tty_fd, KDSETMODE, KD_GRAPHICS);
+	ioctl(tty_fd, KDSETMODE, KD_GRAPHICS);
 
 
 	struct timespec tim, tim2;
@@ -107,6 +102,5 @@ void draw_test(bool force_show) {
 	if (nanosleep(&tim, &tim2)<0)
 		std::cout << "nanosleep failed!" << std::endl;
 
-	if (force_show)
-		ioctl(tty_fd, KDSETMODE, KD_TEXT);
+	ioctl(tty_fd, KDSETMODE, KD_TEXT);
 }
