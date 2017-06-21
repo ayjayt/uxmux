@@ -8,6 +8,7 @@ test_container::test_container(struct fb_fix_screeninfo* finfo, struct fb_var_sc
 	std::cout << "ctor test_container" << std::endl;
     m_finfo = finfo;
     m_vinfo = vinfo;
+    m_back_buffer = static_cast<uint32_t*>(mmap(0, vinfo->yres_virtual * finfo->line_length, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, off_t(0)));
 }
 
 test_container::~test_container(void){
@@ -16,6 +17,13 @@ test_container::~test_container(void){
 
 inline uint32_t test_container::pixel_color(uint8_t r, uint8_t g, uint8_t b, struct fb_var_screeninfo *vinfo) {
     return static_cast<uint32_t>(r<<vinfo->red.offset | g<<vinfo->green.offset | b<<vinfo->blue.offset);
+}
+
+void test_container::swap_buffer(litehtml::uint_ptr hdc) {
+    int i;
+    for (i=0; i<(m_vinfo->yres_virtual * m_finfo->line_length)/4; i++) {
+        ((uint32_t*)(hdc))[i] = m_back_buffer[i];
+    }
 }
 
 void test_container::draw_rect(litehtml::uint_ptr hdc, const litehtml::position& rect, litehtml::web_color color) {

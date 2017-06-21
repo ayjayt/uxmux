@@ -7,15 +7,14 @@
 #include <linux/fb.h>
 #include <linux/kd.h>
 #include <sys/ioctl.h>
-#include <sys/mman.h>
 
 #include "test_container.h"
 
 litehtml::uint_ptr get_drawable(struct fb_fix_screeninfo *_finfo, struct fb_var_screeninfo *_vinfo);
 
 int main(int argc, char* argv[]) {
-	if (argc<2 || argc>3) {
-		std::cout << "usage:" << argv[0] << " <filename> [--inspect-drawphase]" << std::endl;
+	if (argc!=2) {
+		std::cout << "usage:" << argv[0] << " <filename>" << std::endl;
 	} else {
 
 		/* Read the given file and print its contents to the screen */
@@ -41,21 +40,16 @@ int main(int argc, char* argv[]) {
 		std::cout << "load_master_stylesheet" << std::endl;
 		context.load_master_stylesheet(_t("html,div,body {display:block;} head,style {display:none;}"));
 
-		std::cout << "rendering.." << std::endl;
-
 		/* Render and draw to the screen*/
+		std::cout << "rendering.." << std::endl;
 		doc->render(1000);
-
 		std::cout << "drawing.." << std::endl;
+		doc->draw(painter.m_back_buffer,0,0,0);
 
-		/* In order to inspect the console output made during the drawing phase, we need to stay in KD_TEXT mode*/
-		bool inspect = argc==3 && (strcmp(argv[2], "-i")==0 || strcmp(argv[2], "--inspect-drawphase")==0);
 		int tty_fd = open("/dev/tty0", O_RDWR);
-		if (!inspect) {
-			ioctl(tty_fd, KDSETMODE, KD_GRAPHICS);
-		}
+		ioctl(tty_fd, KDSETMODE, KD_GRAPHICS);
 
-		doc->draw(hdc,0,0,0);
+		painter.swap_buffer(hdc);
 
 		/* Hold the rendered screen for 2 seconds*/
 		struct timespec tim, tim2;
@@ -64,9 +58,7 @@ int main(int argc, char* argv[]) {
 		if (nanosleep(&tim, &tim2)<0)
 			std::cout << "nanosleep failed!" << std::endl;
 
-		if (!inspect) {
-			ioctl(tty_fd, KDSETMODE, KD_TEXT);
-		}
+		ioctl(tty_fd, KDSETMODE, KD_TEXT);
 
 		std::cout << "Completed.                                                   " << std::endl;
 	}

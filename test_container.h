@@ -1,9 +1,11 @@
 #include <linux/fb.h>
+#include <sys/mman.h>
 #include "litehtml.h"
 
 class test_container : public litehtml::document_container {
 public:
 
+	uint32_t* m_back_buffer;
 	struct fb_fix_screeninfo* m_finfo;
 	struct fb_var_screeninfo* m_vinfo;
 
@@ -14,6 +16,7 @@ public:
 	inline uint32_t pixel_color(uint8_t r, uint8_t g, uint8_t b, struct fb_var_screeninfo *vinfo);
 	void draw_rect(litehtml::uint_ptr hdc, const litehtml::position& rect, litehtml::web_color color);
 	void draw_rect(litehtml::uint_ptr hdc, int xpos, int ypos, int width, int height, litehtml::web_color color);
+	void swap_buffer(litehtml::uint_ptr hdc);
 
 	/* From abstract class "litehtml::document_container" in "litehtml/src/html.h"
 	   see also: https://github.com/litehtml/litehtml/wiki/document_container */
