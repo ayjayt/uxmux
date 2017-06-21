@@ -18,8 +18,25 @@ inline uint32_t test_container::pixel_color(uint8_t r, uint8_t g, uint8_t b, str
     return static_cast<uint32_t>(r<<vinfo->red.offset | g<<vinfo->green.offset | b<<vinfo->blue.offset);
 }
 
+void test_container::draw_rect(litehtml::uint_ptr hdc, const litehtml::position& rect, litehtml::web_color color) {
+    // draw_rect(hdc, rect.x, rect.y, rect.width, rect.height, color);
+    draw_rect(hdc, rect.x, rect.y, rect.width, rect.height, litehtml::web_color(0xff, 0, 0xff));
+}
+
+void test_container::draw_rect(litehtml::uint_ptr hdc, int xpos, int ypos, int width, int height, litehtml::web_color color) {
+    std::cout << "   draw_rect, at (" << xpos << ", " << ypos << "), size (" << width << ", " << height << "), color (" << static_cast<int>(color.red) << ", " << static_cast<int>(color.green) << ", " << static_cast<int>(color.blue) << ")" << std::endl;
+
+    long x, y;
+    for (x = xpos; x < width; x++) {
+        for (y = ypos; y < height; y++) {
+            long location = (x+m_vinfo->xoffset)*(m_vinfo->bits_per_pixel/8) + (y+m_vinfo->yoffset)*m_finfo->line_length;
+            *(reinterpret_cast<uint32_t*>(hdc+location)) = pixel_color(color.red, color.green, color.blue, m_vinfo);
+        }
+    }
+}
+
 litehtml::uint_ptr test_container::create_font(const litehtml::tchar_t* faceName, int size, int weight, litehtml::font_style italic, unsigned int decoration, litehtml::font_metrics* fm){
-	std::cout << "create_font" << std::endl;
+	std::cout << "create_font: " << faceName << std::endl;
 	return 0;
 }
 
@@ -29,21 +46,15 @@ void test_container::delete_font(litehtml::uint_ptr hFont){
 
 int test_container::text_width(const litehtml::tchar_t* text, litehtml::uint_ptr hFont){
 	std::cout << "text_width" << std::endl;
-	return 0;
+	return strlen(text)*get_default_font_size();
 }
 
 void test_container::draw_text(litehtml::uint_ptr hdc, const litehtml::tchar_t* text, litehtml::uint_ptr hFont, litehtml::web_color color, const litehtml::position& pos){
-	std::cout << "draw_text: " << text << std::endl;
-
-    /* Simply fill screen with white to show it's working*/
-    long x, y;
-
-    for (x = 0; x < m_vinfo->xres; x++) {
-        for (y = 0; y < m_vinfo->yres; y++) {
-            long location = (x+m_vinfo->xoffset)*(m_vinfo->bits_per_pixel/8) + (y+m_vinfo->yoffset)*m_finfo->line_length;
-            *(reinterpret_cast<uint32_t*>(hdc+location)) = pixel_color(0xFF, 0xFF, 0xFF, m_vinfo);
-        }
-    }
+	std::cout << "draw_text: " << text << ", at (" << pos.x << ", " << pos.y << "), size (" << pos.width << ", " << pos.height << ")" << std::endl;
+    if (strcmp(text, " ")==0)
+        draw_rect(hdc, pos.x, pos.y, pos.width, get_default_font_size(), color);
+    else
+        draw_rect(hdc, pos.x, pos.y, pos.width, get_default_font_size(), litehtml::web_color(0xff, 0x0, 0xff));
 }
 
 int test_container::pt_to_px(int pt){
@@ -79,6 +90,10 @@ void test_container::draw_background(litehtml::uint_ptr hdc, const litehtml::bac
 
 void test_container::draw_borders(litehtml::uint_ptr hdc, const litehtml::borders& borders, const litehtml::position& draw_pos, bool root){
 	std::cout << "draw_borders" << std::endl;
+    draw_rect(hdc, draw_pos.x, draw_pos.y, draw_pos.width, borders.top.width, borders.top.color);
+    draw_rect(hdc, draw_pos.x, draw_pos.y+draw_pos.height, draw_pos.width, borders.bottom.width, borders.bottom.color);
+    draw_rect(hdc, draw_pos.x, draw_pos.y, borders.left.width, draw_pos.height, borders.left.color);
+    draw_rect(hdc, draw_pos.x+draw_pos.width, draw_pos.y, borders.right.width, draw_pos.height, borders.right.color);
 }
 
 void test_container::set_caption(const litehtml::tchar_t* caption){
@@ -118,18 +133,35 @@ void test_container::del_clip(){
 }
 
 void test_container::get_client_rect(litehtml::position& client) const{
-	std::cout << "get_client_rect" << std::endl;
+	std::cout << "get_client_rect (" << m_vinfo->xres << ", " << m_vinfo->yres << ")" << std::endl;
+    client.x = 0;
+    client.y = 0;
+    client.width = m_vinfo->xres;
+    client.height = m_vinfo->yres;
 }
 
 std::shared_ptr<litehtml::element> test_container::create_element(const litehtml::tchar_t* tag_name, const litehtml::string_map& attributes, const std::shared_ptr<litehtml::document>& doc){
-	std::cout << "create_element" << std::endl;
+	std::cout << "create_element: " << tag_name << std::endl;
 	return 0;
 }
 
 void test_container::get_media_features(litehtml::media_features& media) const{
 	std::cout << "get_media_features" << std::endl;
+    litehtml::position client;
+    get_client_rect(client);
+    media.type = litehtml::media_type_screen;
+    media.width = client.width;
+    media.height = client.height;
+    media.device_width = m_vinfo->xres;
+    media.device_height = m_vinfo->yres;
+    media.color = 8;
+    media.monochrome = 0;
+    media.color_index = 256;
+    media.resolution = 96;
 }
 
-void test_container::get_language(litehtml::tstring& language,litehtml::tstring& culture) const{
+void test_container::get_language(litehtml::tstring& language, litehtml::tstring& culture) const{
 	std::cout << "get_language" << std::endl;
+    language = _t("en");
+    culture = _t("");
 }
