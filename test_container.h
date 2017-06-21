@@ -1,5 +1,6 @@
 #include <linux/fb.h>
 #include <sys/mman.h>
+#include <unordered_map>
 #include "litehtml.h"
 
 #include <ft2build.h>
@@ -7,6 +8,8 @@
 
 class test_container : public litehtml::document_container {
 public:
+	std::unordered_map<std::string, litehtml::uint_ptr> m_fonts;
+
 	FT_Library m_library;
 	FT_Face m_face;
 	FT_GlyphSlot m_slot;
@@ -23,6 +26,7 @@ public:
 	void draw_rect(litehtml::uint_ptr hdc, const litehtml::position& rect, litehtml::web_color color);
 	void draw_rect(litehtml::uint_ptr hdc, int xpos, int ypos, int width, int height, litehtml::web_color color);
 	void swap_buffer(litehtml::uint_ptr hdc);
+	void load_font(litehtml::uint_ptr hFont);
 
 	/* From abstract class "litehtml::document_container" in "litehtml/src/html.h"
 	   see also: https://github.com/litehtml/litehtml/wiki/document_container */
