@@ -30,7 +30,7 @@ int main(int argc, char* argv[]) {
 
 		std::ifstream t2(argv[2]);
 		std::stringstream buffer2;
-		buffer2 << t.rdbuf();
+		buffer2 << t2.rdbuf();
 
 		/* Get references to the framebuffer to work with */
 		struct fb_fix_screeninfo finfo;
@@ -42,14 +42,14 @@ int main(int argc, char* argv[]) {
 
 		/* Start litehtml rendering
 		   See: https://github.com/litehtml/litehtml/wiki/How-to-use-litehtml */
-		std::cout << "createFromString" << std::endl;
-		litehtml::document::ptr doc = litehtml::document::createFromString(buffer.str().c_str(), &painter, &context);
 		std::cout << "load_master_stylesheet" << std::endl;
 		context.load_master_stylesheet(buffer2.str().c_str());
+		std::cout << "createFromString" << std::endl;
+		litehtml::document::ptr doc = litehtml::document::createFromString(buffer.str().c_str(), &painter, &context);
 
 		/* Render and draw to the screen*/
 		std::cout << "rendering.." << std::endl;
-		doc->render(1000);
+		doc->render(1000);//vinfo.yres);
 		std::cout << "drawing.." << std::endl;
 		doc->draw(painter.m_back_buffer,0,0,0);
 
@@ -59,11 +59,14 @@ int main(int argc, char* argv[]) {
 		ioctl(tty_fd, KDSETMODE, KD_GRAPHICS);
 
 		/* Hold the rendered screen for 2 seconds*/
-		struct timespec tim, tim2;
-		tim.tv_sec = 2;
-		tim.tv_nsec = 0;
-		if (nanosleep(&tim, &tim2)<0)
-			std::cout << "nanosleep failed!" << std::endl;
+		// struct timespec tim, tim2;
+		// tim.tv_sec = 2;
+		// tim.tv_nsec = 0;
+		// if (nanosleep(&tim, &tim2)<0)
+		// 	std::cout << "nanosleep failed!" << std::endl;
+
+		/* Hold screen until enter key is pressed*/
+		while (std::cin.get() != '\n');
 
 		ioctl(tty_fd, KDSETMODE, KD_TEXT);
 

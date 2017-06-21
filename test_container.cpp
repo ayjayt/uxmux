@@ -58,7 +58,7 @@ void test_container::draw_rect(litehtml::uint_ptr hdc, int xpos, int ypos, int w
 }
 
 litehtml::uint_ptr test_container::create_font(const litehtml::tchar_t* faceName, int size, int weight, litehtml::font_style italic, unsigned int decoration, litehtml::font_metrics* fm){
-	std::cout << "create_font: " << faceName << std::endl;
+	std::cout << "create_font: " << faceName << ", size="<< size << ", weight="<< weight << ", style="<< italic << ", decoration="<< decoration << std::endl;
 
     /* set up matrix */
     FT_Matrix matrix;
@@ -153,17 +153,25 @@ void test_container::draw_text(litehtml::uint_ptr hdc, const litehtml::tchar_t* 
         std::cout << "  bitmap_left=" << m_slot->bitmap_left << ",  bitmap_top" << m_slot->bitmap_top << ", bitmap.width" << m_slot->bitmap.width << ", bitmap.rows" << m_slot->bitmap.rows << std::endl;
 
         /* now, draw to our target surface (convert position) */
-        // draw_bitmap(&m_slot->bitmap, m_slot->bitmap_left, m_vinfo.yres - m_slot->bitmap_top );
         int i, j, p, q;
-        int targety = pos.height + pos.y;
+        int targety = pos.y + pos.height - m_slot->bitmap_top + pos.y;
         std::cout << "line height: " << m_face->size->metrics.height/64 << std::endl;
         for (i = m_slot->bitmap_left, p = 0; i < m_slot->bitmap_left+m_slot->bitmap.width; i++, p++) {
-            for (j = targety-m_slot->bitmap_top, q = 0; j < targety-m_slot->bitmap_top+m_slot->bitmap.rows; j++, q++) {
+            for (j = targety, q = 0; j < targety+m_slot->bitmap.rows; j++, q++) {
                 if (i < 0 || j < 0 || i >= m_vinfo->xres || j >= m_vinfo->yres)
                    continue;
                 long location = (i+m_vinfo->xoffset)*(m_vinfo->bits_per_pixel/8) + (j+m_vinfo->yoffset)*m_finfo->line_length;
                 uint32_t col = m_slot->bitmap.buffer[q * static_cast<unsigned int>(m_slot->bitmap.width) + p];
-                *(reinterpret_cast<uint32_t*>(reinterpret_cast<long>(hdc)+location)) = col?col:0xffffff;
+                /* Split pixel color into RGB components */
+                uint8_t col_r = col&0xff0000;
+                uint8_t col_g = col&0xff00;
+                uint8_t col_b = col&0xff;
+                /* Find max of color components */
+                col_b = col_b > col_r ? col_b : col_r;
+                col_b = col_b > col_g ? col_b : col_g;
+                col_b = col_b > col_r ? col_b : col_r;
+                /* Draw the text in grayscale (usually black) */
+                *(reinterpret_cast<uint32_t*>(reinterpret_cast<long>(hdc)+location)) = col ? ((0xff-col_b)<<16)|((0xff-col_b)<<8)|((0xff-col_b)) : 0xffffff;
             }
         }
 
@@ -213,7 +221,7 @@ void test_container::draw_borders(litehtml::uint_ptr hdc, const litehtml::border
 }
 
 void test_container::set_caption(const litehtml::tchar_t* caption){
-	std::cout << "set_caption" << std::endl;
+	std::cout << "set_caption: " << caption << std::endl;
 }
 
 void test_container::set_base_url(const litehtml::tchar_t* base_url){
@@ -233,11 +241,11 @@ void test_container::set_cursor(const litehtml::tchar_t* cursor){
 }
 
 void test_container::transform_text(litehtml::tstring& text, litehtml::text_transform tt){
-	std::cout << "transform_text" << std::endl;
+	std::cout << "transform_text: " << text << std::endl;
 }
 
 void test_container::import_css(litehtml::tstring& text, const litehtml::tstring& url, litehtml::tstring& baseurl){
-	std::cout << "import_css" << std::endl;
+	std::cout << "import_css: base=" << baseurl << ", url=" << url << std::endl;
 }
 
 void test_container::set_clip(const litehtml::position& pos, const litehtml::border_radiuses& bdr_radius, bool valid_x, bool valid_y){
