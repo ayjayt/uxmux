@@ -3,17 +3,23 @@
 #include <iostream>
 #include <math.h>
 
+/* See https://github.com/litehtml/litehtml/wiki/document_container */
+
 test_container::test_container(struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo){
     std::cout << "ctor test_container" << std::endl;
 
+    /* Setup Font Library */
     FT_Init_FreeType(&m_library);
     FT_New_Face(m_library, "/usr/share/fonts/truetype/dejavu/DejaVuSerif.ttf", 0, &m_face);
-    FT_Set_Char_Size(m_face, 0, 8*64, 300, 300);
+    FT_Set_Char_Size(m_face, 0, get_default_font_size()/4*64, 300, 300);
     m_slot = m_face->glyph;
 
     m_finfo = finfo;
     m_vinfo = vinfo;
     m_back_buffer = static_cast<uint32_t*>(mmap(0, vinfo->yres_virtual * finfo->line_length, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, off_t(0)));
+
+    /* Clear the screen to white */
+    draw_rect(m_back_buffer, 0, 0, vinfo->xres, vinfo->yres, litehtml::web_color(0xff, 0xff, 0xff));
 }
 
 test_container::~test_container(void){
@@ -29,7 +35,7 @@ inline uint32_t test_container::pixel_color(uint8_t r, uint8_t g, uint8_t b, str
 
 void test_container::swap_buffer(litehtml::uint_ptr hdc) {
     int i;
-    draw_rect(m_back_buffer, 0, 0, 16, 16, litehtml::web_color(0xff,0,0));
+    // draw_rect(m_back_buffer, 0, 0, 16, 16, litehtml::web_color(0xff,0,0));
     for (i=0; i<(m_vinfo->yres_virtual * m_finfo->line_length)/4; i++) {
         (reinterpret_cast<uint32_t*>(hdc))[i] = m_back_buffer[i];
     }
@@ -53,26 +59,77 @@ void test_container::draw_rect(litehtml::uint_ptr hdc, int xpos, int ypos, int w
 
 litehtml::uint_ptr test_container::create_font(const litehtml::tchar_t* faceName, int size, int weight, litehtml::font_style italic, unsigned int decoration, litehtml::font_metrics* fm){
 	std::cout << "create_font: " << faceName << std::endl;
-	return 0;
+
+    /* set up matrix */
+    FT_Matrix matrix;
+    // double angle = 0;
+    matrix.xx = 0x10000L;//(FT_Fixed)(cos(angle) * 0x10000L);
+    matrix.xy = 0;//(FT_Fixed)(-sin(angle) * 0x10000L);
+    matrix.yx = 0;//(FT_Fixed)(sin(angle) * 0x10000L);
+    matrix.yy = 0x10000L;//(FT_Fixed)(cos(angle) * 0x10000L);
+
+    fm->height = m_face->size->metrics.height/64;
+    fm->ascent = m_face->size->metrics.ascender/64;
+    fm->descent = m_face->size->metrics.descender/64;
+
+    FT_Vector pen;
+    pen.x = 0;
+    pen.y = 0;
+
+    FT_Set_Transform(m_face, &matrix, &pen);
+    FT_Load_Char(m_face, 'x', FT_LOAD_RENDER);
+
+    fm->x_height = m_slot->bitmap_top;
+
+    std::cout << "   height=" << fm->height << ", ascent=" << fm->ascent << ", descent=" << fm->descent << ", x_height=" << fm->x_height << std::endl;
+    return 0;
 }
 
 void test_container::delete_font(litehtml::uint_ptr hFont){
-	std::cout << "delete_font" << std::endl;
+    std::cout << "delete_font" << std::endl;
 }
 
 int test_container::text_width(const litehtml::tchar_t* text, litehtml::uint_ptr hFont){
 	std::cout << "text_width" << std::endl;
-	return strlen(text)*get_default_font_size();
+
+    int width;
+
+    /* set up matrix */
+    FT_Matrix matrix;
+    // double angle = 0;
+    matrix.xx = 0x10000L;//(FT_Fixed)(cos(angle) * 0x10000L);
+    matrix.xy = 0;//(FT_Fixed)(-sin(angle) * 0x10000L);
+    matrix.yx = 0;//(FT_Fixed)(sin(angle) * 0x10000L);
+    matrix.yy = 0x10000L;//(FT_Fixed)(cos(angle) * 0x10000L);
+
+    FT_Vector pen;
+    pen.x = 0;
+    pen.y = 0;
+
+    int n;
+    for (n = 0; n < strlen(text); n++) {
+        FT_Set_Transform(m_face, &matrix, &pen);
+        /* load glyph image into the slot (erase previous one) */
+        if (FT_Load_Char(m_face, text[n], FT_LOAD_RENDER))
+            continue;  /* ignore errors */
+
+        if (n == strlen(text)-1)
+            width = m_slot->bitmap_left+m_slot->advance.x/64;
+
+        /* increment pen position */
+        pen.x += m_slot->advance.x;
+        pen.y += m_slot->advance.y;
+    }
+
+	return width;
 }
 
 void test_container::draw_text(litehtml::uint_ptr hdc, const litehtml::tchar_t* text, litehtml::uint_ptr hFont, litehtml::web_color color, const litehtml::position& pos){
 	std::cout << "draw_text: " << text << ", at (" << pos.x << ", " << pos.y << "), size (" << pos.width << ", " << pos.height << ")" << std::endl;
     if (strcmp(text, " ")==0) {
-        draw_rect(hdc, pos.x, pos.y, pos.width, get_default_font_size(), color);
-        return;
+        draw_rect(hdc, pos.x, pos.y, pos.width, pos.height, litehtml::web_color(0xff, 0, 0));
     } else
-        draw_rect(hdc, pos.x, pos.y, pos.width, get_default_font_size(), litehtml::web_color(0xff, 0x0, 0xff));
-
+        draw_rect(hdc, pos.x, pos.y, pos.width, pos.height, litehtml::web_color(0xff, 0xff, 0));
 
     /* set up matrix */
     FT_Matrix matrix;
@@ -98,12 +155,15 @@ void test_container::draw_text(litehtml::uint_ptr hdc, const litehtml::tchar_t* 
         /* now, draw to our target surface (convert position) */
         // draw_bitmap(&m_slot->bitmap, m_slot->bitmap_left, m_vinfo.yres - m_slot->bitmap_top );
         int i, j, p, q;
+        int targety = pos.height + pos.y;
+        std::cout << "line height: " << m_face->size->metrics.height/64 << std::endl;
         for (i = m_slot->bitmap_left, p = 0; i < m_slot->bitmap_left+m_slot->bitmap.width; i++, p++) {
-            for (j = 32-m_slot->bitmap_top, q = 0; j < 32-m_slot->bitmap_top+m_slot->bitmap.rows; j++, q++) {
+            for (j = targety-m_slot->bitmap_top, q = 0; j < targety-m_slot->bitmap_top+m_slot->bitmap.rows; j++, q++) {
                 if (i < 0 || j < 0 || i >= m_vinfo->xres || j >= m_vinfo->yres)
                    continue;
                 long location = (i+m_vinfo->xoffset)*(m_vinfo->bits_per_pixel/8) + (j+m_vinfo->yoffset)*m_finfo->line_length;
-                *(reinterpret_cast<uint32_t*>(reinterpret_cast<long>(hdc)+location)) = m_slot->bitmap.buffer[q * static_cast<unsigned int>(m_slot->bitmap.width) + p];
+                uint32_t col = m_slot->bitmap.buffer[q * static_cast<unsigned int>(m_slot->bitmap.width) + p];
+                *(reinterpret_cast<uint32_t*>(reinterpret_cast<long>(hdc)+location)) = col?col:0xffffff;
             }
         }
 
