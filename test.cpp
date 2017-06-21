@@ -46,10 +46,10 @@ int main(int argc, char* argv[]) {
 		std::cout << "drawing.." << std::endl;
 		doc->draw(painter.m_back_buffer,0,0,0);
 
+		painter.swap_buffer(hdc);
+
 		int tty_fd = open("/dev/tty0", O_RDWR);
 		ioctl(tty_fd, KDSETMODE, KD_GRAPHICS);
-
-		painter.swap_buffer(hdc);
 
 		/* Hold the rendered screen for 2 seconds*/
 		struct timespec tim, tim2;
@@ -60,7 +60,7 @@ int main(int argc, char* argv[]) {
 
 		ioctl(tty_fd, KDSETMODE, KD_TEXT);
 
-		std::cout << "Completed.                                                   " << std::endl;
+		std::cout << "Completed." << std::endl;
 	}
 
 	return 0;

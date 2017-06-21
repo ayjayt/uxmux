@@ -2,8 +2,14 @@
 #include <sys/mman.h>
 #include "litehtml.h"
 
+#include <ft2build.h>
+#include FT_FREETYPE_H
+
 class test_container : public litehtml::document_container {
 public:
+	FT_Library m_library;
+	FT_Face m_face;
+	FT_GlyphSlot m_slot;
 
 	uint32_t* m_back_buffer;
 	struct fb_fix_screeninfo* m_finfo;
