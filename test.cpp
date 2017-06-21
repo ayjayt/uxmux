@@ -13,8 +13,8 @@
 litehtml::uint_ptr get_drawable(struct fb_fix_screeninfo *_finfo, struct fb_var_screeninfo *_vinfo);
 
 int main(int argc, char* argv[]) {
-	if (argc!=2) {
-		std::cout << "usage:" << argv[0] << " <filename>" << std::endl;
+	if (argc!=3) {
+		std::cout << "usage: " << argv[0] << " <html_file> <master_css>" << std::endl;
 	} else {
 
 		/* Read the given file and print its contents to the screen */
@@ -24,6 +24,13 @@ int main(int argc, char* argv[]) {
 		std::stringstream buffer;
 		buffer << t.rdbuf();
 		std::cout << buffer.str() << std::endl;
+
+		/* Load the master.css file */
+		std::cout << "Loading file " << argv[2] << " as CSS" << std::endl << std::endl;
+
+		std::ifstream t2(argv[2]);
+		std::stringstream buffer2;
+		buffer2 << t.rdbuf();
 
 		/* Get references to the framebuffer to work with */
 		struct fb_fix_screeninfo finfo;
@@ -38,7 +45,7 @@ int main(int argc, char* argv[]) {
 		std::cout << "createFromString" << std::endl;
 		litehtml::document::ptr doc = litehtml::document::createFromString(buffer.str().c_str(), &painter, &context);
 		std::cout << "load_master_stylesheet" << std::endl;
-		context.load_master_stylesheet(_t("html,div,body {display:block;} head,style {display:none;}"));
+		context.load_master_stylesheet(buffer2.str().c_str());
 
 		/* Render and draw to the screen*/
 		std::cout << "rendering.." << std::endl;
