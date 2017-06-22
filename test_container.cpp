@@ -302,8 +302,36 @@ const litehtml::tchar_t* test_container::get_default_font_name() const{
     return "DejaVuSans";
 }
 
+/* TODO: Other list styles */
+/* For Reference:
+    enum list_style_type
+        {
+            list_style_type_none,
+            list_style_type_circle,
+            list_style_type_disc,
+            list_style_type_square,
+            list_style_type_armenian,
+            list_style_type_cjk_ideographic,
+            list_style_type_decimal,
+            list_style_type_decimal_leading_zero,
+            list_style_type_georgian,
+            list_style_type_hebrew,
+            list_style_type_hiragana,
+            list_style_type_hiragana_iroha,
+            list_style_type_katakana,
+            list_style_type_katakana_iroha,
+            list_style_type_lower_alpha,
+            list_style_type_lower_greek,
+            list_style_type_lower_latin,
+            list_style_type_lower_roman,
+            list_style_type_upper_alpha,
+            list_style_type_upper_latin,
+            list_style_type_upper_roman,
+        };
+*/
 void test_container::draw_list_marker(litehtml::uint_ptr hdc, const litehtml::list_marker& marker) {
-	std::cout << "draw_list_marker" << std::endl;
+	std::cout << "draw_list_marker " << marker.image << " at " << marker.pos.x << ", " << marker.pos.y << std::endl;
+    draw_rect(hdc, marker.pos.x, marker.pos.y, marker.pos.width, marker.pos.height, marker.color);
 }
 
 void test_container::load_image(const litehtml::tchar_t* src, const litehtml::tchar_t* baseurl, bool redraw_on_ready) {
@@ -312,12 +340,15 @@ void test_container::load_image(const litehtml::tchar_t* src, const litehtml::tc
 
 void test_container::get_image_size(const litehtml::tchar_t* src, const litehtml::tchar_t* baseurl, litehtml::size& sz) {
 	std::cout << "get_image_size: " << src << std::endl;
-    sz.width=1;
-    sz.height=1;
+    m_image_loader.image_size((m_directory+src).c_str(), &sz.width, &sz.height);
 }
 
 void test_container::draw_background(litehtml::uint_ptr hdc, const litehtml::background_paint& bg) {
 	std::cout << "draw_background: " << bg.image << " at " << bg.position_x << ", " << bg.position_y << std::endl;
+    if (strcmp(bg.image.c_str(), "")!=0)
+        if (!m_image_loader.load_image((m_directory+bg.image).c_str()))
+            if (!m_image_loader.copy_to_framebuffer(hdc, m_finfo, m_vinfo, bg.position_x, bg.position_y))
+                return;
     draw_rect(hdc, bg.border_box.x, bg.border_box.y, bg.border_box.width, bg.border_box.height, bg.color);
 }
 

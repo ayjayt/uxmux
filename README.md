@@ -6,6 +6,7 @@ Tested on linux (4.9.0-kali4-amd64) <br/>
 gcc version 6.3.0 20170516 (Debian 6.3.0-18) <br/>
 cmake version 3.7.2 <br/>
 freetype2 version 18.3.12 <br/>
+libpng version 1.6.28 <br/>
 [litehtml](https://github.com/litehtml/litehtml) version at d7cc6ab (Apr 7, 2017)
 
 ### My steps, assuming "." is project directory:

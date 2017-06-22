@@ -18,6 +18,10 @@ mystyle2 {
     background-color: yellow;
 }
 
+td {
+    border-width: 0px;
+}
+
 body {
     background-color: white;
 }

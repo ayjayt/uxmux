@@ -2,13 +2,16 @@
 #include <sys/mman.h>
 #include <unordered_map>
 #include "litehtml.h"
+#include "image_loader.h"
 
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
 class test_container : public litehtml::document_container {
-public:
+private:
 	std::unordered_map<std::string, litehtml::uint_ptr> m_fonts;
+
+    image_loader m_image_loader;
 
 	FT_Library m_library;
 	FT_Face m_face;
@@ -16,9 +19,11 @@ public:
 	FT_GlyphSlot m_slot;
 
 	std::string m_directory;
-	uint32_t* m_back_buffer;
 	struct fb_fix_screeninfo* m_finfo;
 	struct fb_var_screeninfo* m_vinfo;
+
+public:
+	uint32_t* m_back_buffer;
 
 	// test_container(void);
 	test_container(std::string prefix, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo);
