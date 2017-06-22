@@ -6,12 +6,16 @@
 
 /* See https://github.com/litehtml/litehtml/wiki/document_container */
 
-test_container::test_container(struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo) {
+test_container::test_container(std::string prefix, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo) {
     std::cout << "ctor test_container" << std::endl;
 
     /* Setup Font Library */
     FT_Init_FreeType(&m_library);
 
+    if (strcmp(prefix.c_str(),"")!=0)
+        m_directory = prefix+"/";
+    else
+        m_directory = "";
     m_finfo = finfo;
     m_vinfo = vinfo;
     m_back_buffer = static_cast<uint32_t*>(mmap(0, vinfo->yres_virtual * finfo->line_length, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, off_t(0)));
@@ -58,28 +62,65 @@ void test_container::draw_rect(litehtml::uint_ptr hdc, int xpos, int ypos, int w
 
 void test_container::load_font(litehtml::uint_ptr hFont) {
     m_face = static_cast<FT_Face>(hFont);
+    if (!m_face) m_face = m_default_face;
+    if (!m_face) return;
     m_slot = m_face->glyph;
 }
 
 litehtml::uint_ptr test_container::create_font(const litehtml::tchar_t* faceName, int size, int weight, litehtml::font_style italic, unsigned int decoration, litehtml::font_metrics* fm) {
 	std::cout << "create_font: " << faceName << ", size="<< size << ", weight="<< weight << ", style="<< italic << ", decoration="<< decoration << std::endl;
 
-    if (strcmp(faceName, get_default_font_name()) == 0) {
-        std::string key = faceName;
-        if (italic && weight==700)
+    if (faceName) {
+
+        std::string str = faceName;
+        std::stringstream ss(str);
+        std::string name;
+        while (ss >> name) {
+            if (ss.peek() == ',' || ss.peek() == '.' || ss.peek() == ' ') {
+                ss.ignore();
+                break;
+            }
+        }
+        name.erase(std::remove(name.begin(), name.end(), '"'), name.end());
+        name.erase(std::remove(name.begin(), name.end(), ','), name.end());
+        std::cout << "   Parsed Name : " << name << std::endl;
+
+        std::string key = name;
+        std::string keyalt = name;
+        if (italic && weight>=600) {
             key+="-BoldItalic";
-        else if (weight==700)
+            keyalt+="-BoldOblique";
+        } else if (weight>=600) {
             key+="-Bold";
-        else if (italic)
+            keyalt+="-Heavy";
+        } else if (italic) {
             key+="-Italic";
+            keyalt+="-Oblique";
+        } else
+            keyalt+="-Regular";
 
         /* If font already exists, return it*/
         if (m_fonts.count(key+std::to_string(decoration)+std::to_string(size)))
             return m_fonts[key+std::to_string(decoration)+std::to_string(size)];
 
-        FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+key+".ttf").c_str(), 0, &m_face);
+        if (FT_New_Face(m_library, (m_directory+"fonts/"+key+".ttf").c_str(), 0, &m_face)) {
+            std::cout << "   Error loading: fonts/" << key << ".tff" << std::endl << "   Looking in system instead.." << std::endl;
+            if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+key+".ttf").c_str(), 0, &m_face)) {
+                std::cout << "   Not found. Trying alternative: fonts/" << keyalt << ".tff" << std::endl;
+                if (FT_New_Face(m_library, (m_directory+"fonts/"+keyalt+".ttf").c_str(), 0, &m_face)) {
+                    std::cout << "   Error loading: fonts/" << keyalt << ".tff" << std::endl << "   Looking in system instead.." << std::endl;
+                    if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+keyalt+".ttf").c_str(), 0, &m_face)) {
+                        std::cout << "   WARNING: " << key << ".tff (alt " << keyalt << ".tff)" << " could not be found." << std::endl;
+                        return 0;
+                    }
+                }
+            }
+        }
         FT_Set_Char_Size(m_face, 0, size*16, 300, 300);
         m_face->generic.data = reinterpret_cast<void*>(decoration);
+
+        /* Save the first valid font to be used if other fonts are invalid*/
+        if (!m_default_face) m_default_face = m_face;
 
         m_slot = m_face->glyph;
 
@@ -122,6 +163,7 @@ int test_container::text_width(const litehtml::tchar_t* text, litehtml::uint_ptr
 	// std::cout << "text_width" << std::endl;
 
     load_font(hFont);
+    if (!m_face) return 0;
 
     int width;
 
@@ -159,6 +201,7 @@ void test_container::draw_text(litehtml::uint_ptr hdc, const litehtml::tchar_t* 
 	std::cout << "draw_text: " << text << ", at (" << pos.x << ", " << pos.y << "), size (" << pos.width << ", " << pos.height << "), color (" << static_cast<int>(color.red) << ", " << static_cast<int>(color.green) << ", " << static_cast<int>(color.blue) << ")" << std::endl;
 
     load_font(hFont);
+    if (!m_face) return;
 
     std::cout << "   decoration: " << m_face->generic.data << std::endl;
 
@@ -256,7 +299,7 @@ int test_container::get_default_font_size() const{
 
 const litehtml::tchar_t* test_container::get_default_font_name() const{
 	// std::cout << "get_default_font_name" << std::endl;
-    return "DejaVuSerif";
+    return "DejaVuSans";
 }
 
 void test_container::draw_list_marker(litehtml::uint_ptr hdc, const litehtml::list_marker& marker) {
@@ -329,7 +372,8 @@ void test_container::transform_text(litehtml::tstring& text, litehtml::text_tran
 void test_container::import_css(litehtml::tstring& text, const litehtml::tstring& url, litehtml::tstring& baseurl) {
 	std::cout << "import_css: base=" << baseurl << ", url=" << url << std::endl;
 
-    std::ifstream t(url);
+    std::ifstream t(m_directory+url);
+    std::cout << "    " << m_directory << ", url=" << url << std::endl;
     std::stringstream buffer;
     buffer << t.rdbuf();
 

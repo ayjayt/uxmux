@@ -20,6 +20,11 @@ int main(int argc, char* argv[]) {
 		/* Read the given file and print its contents to the screen */
 		std::cout << "Reading file " << argv[1] << " as HTML:" << std::endl << std::endl;
 
+		std::string path = argv[1];
+		std::string prefix = "";
+		if (std::count(path.begin(), path.end(), '/') > 0)
+			prefix = path.substr(0, path.find_last_of('/'));
+
 		std::ifstream t(argv[1]);
 		std::stringstream buffer;
 		buffer << t.rdbuf();
@@ -37,7 +42,7 @@ int main(int argc, char* argv[]) {
 		struct fb_var_screeninfo vinfo;
 		litehtml::uint_ptr hdc = get_drawable(&finfo, &vinfo);
 
-		test_container painter(&finfo, &vinfo);
+		test_container painter(prefix, &finfo, &vinfo);
 		litehtml::context context;
 
 		/* Start litehtml rendering

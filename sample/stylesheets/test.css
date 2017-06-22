@@ -1,7 +1,17 @@
 mystyle {
     display: block;
     padding: 8px;
-    font-size: 20px;
+    font-size: 16px;
+    border-style: solid;
+    border-width: 10px;
+    border-color: #ff0000 #00ff00 #0000ff rgb(250,0,255);
+    background-color: yellow;
+}
+
+mystyle2 {
+    display: block;
+    padding: 8px;
+    font-size: 12px;
     border-style: solid;
     border-width: 10px;
     border-color: #ff0000 #00ff00 #0000ff rgb(250,0,255);
@@ -29,4 +39,20 @@ overline {
 
 underoverline {
     text-decoration: underline overline;
+}
+
+serifcondensed {
+    font-family: "DejaVuSerifCondensed", Dejavu, serif;
+}
+
+serif {
+    font-family: DejaVuSerif, Dejavu, serif;
+}
+
+condensed {
+    font-family: DejaVuSansCondensed Dejavu sans;
+}
+
+mono {
+    font-family: DejaVuSansMono;
 }

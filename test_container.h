@@ -12,14 +12,16 @@ public:
 
 	FT_Library m_library;
 	FT_Face m_face;
+	FT_Face m_default_face;
 	FT_GlyphSlot m_slot;
 
+	std::string m_directory;
 	uint32_t* m_back_buffer;
 	struct fb_fix_screeninfo* m_finfo;
 	struct fb_var_screeninfo* m_vinfo;
 
 	// test_container(void);
-	test_container(struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo);
+	test_container(std::string prefix, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo);
 	~test_container(void);
 
 	inline uint32_t pixel_color(uint8_t r, uint8_t g, uint8_t b, struct fb_var_screeninfo *vinfo);
