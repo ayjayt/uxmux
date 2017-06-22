@@ -1,7 +1,32 @@
 mystyle {
     display: block;
-    font-size: 12px;
+    padding: 8px;
+    font-size: 20px;
     border-style: solid;
     border-width: 10px;
     border-color: #ff0000 #00ff00 #0000ff rgb(250,0,255);
+    background-color: yellow;
+}
+
+body {
+    background-color: white;
+}
+
+underline {
+    text-decoration: underline;
+    color: red;
+}
+
+line-through {
+    text-decoration: line-through;
+    color: green;
+}
+
+overline {
+    text-decoration: overline;
+    color: blue;
+}
+
+underoverline {
+    text-decoration: underline overline;
 }

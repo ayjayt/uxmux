@@ -74,14 +74,16 @@ litehtml::uint_ptr test_container::create_font(const litehtml::tchar_t* faceName
             key+="-Italic";
 
         /* If font already exists, return it*/
-        if (m_fonts.count(key+std::to_string(size)+"px"))
-            return m_fonts[key+std::to_string(size)+"px"];
+        if (m_fonts.count(key+std::to_string(decoration)+std::to_string(size)))
+            return m_fonts[key+std::to_string(decoration)+std::to_string(size)];
 
         FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+key+".ttf").c_str(), 0, &m_face);
         FT_Set_Char_Size(m_face, 0, size*16, 300, 300);
+        m_face->generic.data = reinterpret_cast<void*>(decoration);
+
         m_slot = m_face->glyph;
 
-        m_fonts[key+std::to_string(size)+"px"] = m_face;
+        m_fonts[key+std::to_string(decoration)+std::to_string(size)] = m_face;
 
         /* set up matrix */
         FT_Matrix matrix;
@@ -154,9 +156,11 @@ int test_container::text_width(const litehtml::tchar_t* text, litehtml::uint_ptr
 }
 
 void test_container::draw_text(litehtml::uint_ptr hdc, const litehtml::tchar_t* text, litehtml::uint_ptr hFont, litehtml::web_color color, const litehtml::position& pos) {
-	std::cout << "draw_text: " << text << ", at (" << pos.x << ", " << pos.y << "), size (" << pos.width << ", " << pos.height << ")" << std::endl;
+	std::cout << "draw_text: " << text << ", at (" << pos.x << ", " << pos.y << "), size (" << pos.width << ", " << pos.height << "), color (" << static_cast<int>(color.red) << ", " << static_cast<int>(color.green) << ", " << static_cast<int>(color.blue) << ")" << std::endl;
 
     load_font(hFont);
+
+    std::cout << "   decoration: " << m_face->generic.data << std::endl;
 
     int xpos = pos.x;
     int ypos = pos.y + m_face->size->metrics.descender/32;
@@ -166,9 +170,6 @@ void test_container::draw_text(litehtml::uint_ptr hdc, const litehtml::tchar_t* 
     //     draw_rect(hdc, xpos, ypos, pos.width, pos.height, litehtml::web_color(0xff, 0, 0));
     // } else
     //     draw_rect(hdc, xpos, ypos, pos.width, pos.height, litehtml::web_color(0xff, 0xff, 0));
-
-    /* don't need to do all the work to render a space.. */
-    if (strcmp(text, " ")==0) return;
 
     /* set up matrix */
     FT_Matrix matrix;
@@ -206,17 +207,40 @@ void test_container::draw_text(litehtml::uint_ptr hdc, const litehtml::tchar_t* 
                 uint8_t col_g = col&0xff00;
                 uint8_t col_b = col&0xff;
                 /* Find max of color components */
-                col_b = col_b > col_r ? col_b : col_r;
-                col_b = col_b > col_g ? col_b : col_g;
-                col_b = col_b > col_r ? col_b : col_r;
+                uint8_t col_max;
+                col_max = col_b > col_r ? col_b : col_r;
+                col_max = col_max > col_g ? col_max : col_g;
                 /* Draw the text in grayscale (usually black) */
-                *(reinterpret_cast<uint32_t*>(reinterpret_cast<long>(hdc)+location)) = col ? ((0xff-col_b)<<16)|((0xff-col_b)<<8)|((0xff-col_b)) : 0xffffff;
+                if (col) {
+                    uint32_t target = *(reinterpret_cast<uint32_t*>(reinterpret_cast<long>(hdc)+location));
+                    /* Blend the text color into the background */
+                    /* color = alpha * (src - dest) + dest */
+                    col_r = (static_cast<double>(col_max)/static_cast<double>(0xff))*static_cast<double>(color.red-static_cast<double>((target>>16)&0xff))+((target>>16)&0xff);
+                    col_g = (static_cast<double>(col_max)/static_cast<double>(0xff))*static_cast<double>(color.green-static_cast<double>((target>>8)&0xff))+((target>>8)&0xff);
+                    col_b = (static_cast<double>(col_max)/static_cast<double>(0xff))*static_cast<double>(color.blue-static_cast<double>(target&0xff))+(target&0xff);
+                    *(reinterpret_cast<uint32_t*>(reinterpret_cast<long>(hdc)+location)) = (col_r<<16)|(col_g<<8)|(col_b);
+                }
             }
         }
 
         /* increment pen position */
         pen.x += m_slot->advance.x;
         pen.y += m_slot->advance.y;
+    }
+
+    /* draw underline */
+    if (reinterpret_cast<long>(m_face->generic.data)&litehtml::font_decoration_underline) {
+        draw_rect(hdc, xpos, ypos+pos.height-1, pos.width, 1, color);
+    }
+
+    /* draw strikethrough */
+    if (reinterpret_cast<long>(m_face->generic.data)&litehtml::font_decoration_linethrough) {
+        draw_rect(hdc, xpos, ypos+pos.height/2, pos.width, 1, color);
+    }
+
+    /* draw overline */
+    if (reinterpret_cast<long>(m_face->generic.data)&litehtml::font_decoration_overline) {
+        draw_rect(hdc, xpos, ypos, pos.width, 1, color);
     }
 }
 
@@ -226,12 +250,12 @@ int test_container::pt_to_px(int pt) {
 }
 
 int test_container::get_default_font_size() const{
-	std::cout << "get_default_font_size" << std::endl;
+	// std::cout << "get_default_font_size" << std::endl;
 	return 16;
 }
 
 const litehtml::tchar_t* test_container::get_default_font_name() const{
-	std::cout << "get_default_font_name" << std::endl;
+	// std::cout << "get_default_font_name" << std::endl;
     return "DejaVuSerif";
 }
 
@@ -240,15 +264,18 @@ void test_container::draw_list_marker(litehtml::uint_ptr hdc, const litehtml::li
 }
 
 void test_container::load_image(const litehtml::tchar_t* src, const litehtml::tchar_t* baseurl, bool redraw_on_ready) {
-	std::cout << "load_image" << std::endl;
+	std::cout << "load_image: " << src << std::endl;
 }
 
 void test_container::get_image_size(const litehtml::tchar_t* src, const litehtml::tchar_t* baseurl, litehtml::size& sz) {
-	std::cout << "get_image_size" << std::endl;
+	std::cout << "get_image_size: " << src << std::endl;
+    sz.width=1;
+    sz.height=1;
 }
 
 void test_container::draw_background(litehtml::uint_ptr hdc, const litehtml::background_paint& bg) {
-	std::cout << "draw_background" << std::endl;
+	std::cout << "draw_background: " << bg.image << " at " << bg.position_x << ", " << bg.position_y << std::endl;
+    draw_rect(hdc, bg.border_box.x, bg.border_box.y, bg.border_box.width, bg.border_box.height, bg.color);
 }
 
 /* TODO: Other border styles */
@@ -320,7 +347,7 @@ void test_container::del_clip() {
 }
 
 void test_container::get_client_rect(litehtml::position& client) const{
-	std::cout << "get_client_rect (" << m_vinfo->xres << ", " << m_vinfo->yres << ")" << std::endl;
+	// std::cout << "get_client_rect (" << m_vinfo->xres << ", " << m_vinfo->yres << ")" << std::endl;
     client.x = 0;
     client.y = 0;
     client.width = m_vinfo->xres;
