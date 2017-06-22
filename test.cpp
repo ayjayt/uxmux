@@ -49,7 +49,7 @@ int main(int argc, char* argv[]) {
 
 		/* Render and draw to the screen*/
 		std::cout << "rendering.." << std::endl;
-		doc->render(1000);//vinfo.yres);
+		doc->render(vinfo.xres);
 		std::cout << "drawing.." << std::endl;
 		doc->draw(painter.m_back_buffer,0,0,0);
 

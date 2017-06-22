@@ -1,6 +1,7 @@
 #include "test_container.h"
 
 #include <iostream>
+#include <fstream>
 #include <math.h>
 
 /* See https://github.com/litehtml/litehtml/wiki/document_container */
@@ -32,7 +33,6 @@ inline uint32_t test_container::pixel_color(uint8_t r, uint8_t g, uint8_t b, str
 
 void test_container::swap_buffer(litehtml::uint_ptr hdc) {
     int i;
-    // draw_rect(m_back_buffer, 0, 0, 16, 16, litehtml::web_color(0xff,0,0));
     for (i=0; i<(m_vinfo->yres_virtual * m_finfo->line_length)/4; i++) {
         (reinterpret_cast<uint32_t*>(hdc))[i] = m_back_buffer[i];
     }
@@ -46,8 +46,10 @@ void test_container::draw_rect(litehtml::uint_ptr hdc, int xpos, int ypos, int w
     std::cout << "   draw_rect, at (" << xpos << ", " << ypos << "), size (" << width << ", " << height << "), color (" << static_cast<int>(color.red) << ", " << static_cast<int>(color.green) << ", " << static_cast<int>(color.blue) << ")" << std::endl;
 
     long x, y;
-    for (x = xpos; x < width; x++) {
-        for (y = ypos; y < height; y++) {
+    for (x = xpos; x < xpos + width; x++) {
+        for (y = ypos; y < ypos + height; y++) {
+            if (x < 0 || y < 0 || x >= m_vinfo->xres || y >= m_vinfo->yres)
+                continue;
             long location = (x+m_vinfo->xoffset)*(m_vinfo->bits_per_pixel/8) + (y+m_vinfo->yoffset)*m_finfo->line_length;
             *(reinterpret_cast<uint32_t*>(hdc+location)) = pixel_color(color.red, color.green, color.blue, m_vinfo);
         }
@@ -72,14 +74,14 @@ litehtml::uint_ptr test_container::create_font(const litehtml::tchar_t* faceName
             key+="-Italic";
 
         /* If font already exists, return it*/
-        if (m_fonts.count(key))
-            return m_fonts[key];
+        if (m_fonts.count(key+std::to_string(size)+"px"))
+            return m_fonts[key+std::to_string(size)+"px"];
 
         FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+key+".ttf").c_str(), 0, &m_face);
-        FT_Set_Char_Size(m_face, 0, get_default_font_size()/4*64, 300, 300);
+        FT_Set_Char_Size(m_face, 0, size*16, 300, 300);
         m_slot = m_face->glyph;
 
-        m_fonts[key] = m_face;
+        m_fonts[key+std::to_string(size)+"px"] = m_face;
 
         /* set up matrix */
         FT_Matrix matrix;
@@ -115,7 +117,7 @@ void test_container::delete_font(litehtml::uint_ptr hFont) {
 }
 
 int test_container::text_width(const litehtml::tchar_t* text, litehtml::uint_ptr hFont) {
-	std::cout << "text_width" << std::endl;
+	// std::cout << "text_width" << std::endl;
 
     load_font(hFont);
 
@@ -153,12 +155,20 @@ int test_container::text_width(const litehtml::tchar_t* text, litehtml::uint_ptr
 
 void test_container::draw_text(litehtml::uint_ptr hdc, const litehtml::tchar_t* text, litehtml::uint_ptr hFont, litehtml::web_color color, const litehtml::position& pos) {
 	std::cout << "draw_text: " << text << ", at (" << pos.x << ", " << pos.y << "), size (" << pos.width << ", " << pos.height << ")" << std::endl;
-    if (strcmp(text, " ")==0) {
-        draw_rect(hdc, pos.x, pos.y, pos.width, pos.height, litehtml::web_color(0xff, 0, 0));
-    } else
-        draw_rect(hdc, pos.x, pos.y, pos.width, pos.height, litehtml::web_color(0xff, 0xff, 0));
 
     load_font(hFont);
+
+    int xpos = pos.x;
+    int ypos = pos.y + m_face->size->metrics.descender/32;
+
+    /* Draw boxes where text should be */
+    // if (strcmp(text, " ")==0) {
+    //     draw_rect(hdc, xpos, ypos, pos.width, pos.height, litehtml::web_color(0xff, 0, 0));
+    // } else
+    //     draw_rect(hdc, xpos, ypos, pos.width, pos.height, litehtml::web_color(0xff, 0xff, 0));
+
+    /* don't need to do all the work to render a space.. */
+    if (strcmp(text, " ")==0) return;
 
     /* set up matrix */
     FT_Matrix matrix;
@@ -169,8 +179,8 @@ void test_container::draw_text(litehtml::uint_ptr hdc, const litehtml::tchar_t* 
     matrix.yy = 0x10000L;//(FT_Fixed)(cos(angle) * 0x10000L);
 
     FT_Vector pen;
-    pen.x = pos.x * 64;
-    pen.y = pos.y * 64;
+    pen.x = xpos * 64;
+    pen.y = ypos * 64;
 
     int n;
     for (n = 0; n < strlen(text); n++) {
@@ -179,12 +189,12 @@ void test_container::draw_text(litehtml::uint_ptr hdc, const litehtml::tchar_t* 
         if (FT_Load_Char(m_face, text[n], FT_LOAD_RENDER))
             continue;  /* ignore errors */
 
-        std::cout << "  bitmap_left=" << m_slot->bitmap_left << ",  bitmap_top" << m_slot->bitmap_top << ", bitmap.width" << m_slot->bitmap.width << ", bitmap.rows" << m_slot->bitmap.rows << std::endl;
+        // std::cout << "  bitmap_left=" << m_slot->bitmap_left << ",  bitmap_top" << m_slot->bitmap_top << ", bitmap.width" << m_slot->bitmap.width << ", bitmap.rows" << m_slot->bitmap.rows << std::endl;
 
         /* now, draw to our target surface (convert position) */
         int i, j, p, q;
-        int targety = pos.y + pos.height - m_slot->bitmap_top + pos.y;
-        std::cout << "line height: " << m_face->size->metrics.height/64 << std::endl;
+        int targety = ypos + pos.height - m_slot->bitmap_top + ypos + m_face->size->metrics.descender/64;
+        // std::cout << "line height: " << m_face->size->metrics.height/64 << std::endl;
         for (i = m_slot->bitmap_left, p = 0; i < m_slot->bitmap_left+m_slot->bitmap.width; i++, p++) {
             for (j = targety, q = 0; j < targety+m_slot->bitmap.rows; j++, q++) {
                 if (i < 0 || j < 0 || i >= m_vinfo->xres || j >= m_vinfo->yres)
@@ -241,12 +251,28 @@ void test_container::draw_background(litehtml::uint_ptr hdc, const litehtml::bac
 	std::cout << "draw_background" << std::endl;
 }
 
+/* TODO: Other border styles */
+/* For Reference:
+    enum border_style
+        {
+            border_style_none,
+            border_style_hidden,
+            border_style_dotted,
+            border_style_dashed,
+            border_style_solid,
+            border_style_double,
+            border_style_groove,
+            border_style_ridge,
+            border_style_inset,
+            border_style_outset
+        };
+*/
 void test_container::draw_borders(litehtml::uint_ptr hdc, const litehtml::borders& borders, const litehtml::position& draw_pos, bool root) {
 	std::cout << "draw_borders" << std::endl;
-    draw_rect(hdc, draw_pos.x, draw_pos.y, draw_pos.width, borders.top.width, borders.top.color);
-    draw_rect(hdc, draw_pos.x, draw_pos.y+draw_pos.height, draw_pos.width, borders.bottom.width, borders.bottom.color);
+    draw_rect(hdc, draw_pos.x, draw_pos.y, draw_pos.width-borders.right.width, borders.top.width, borders.top.color);
+    draw_rect(hdc, draw_pos.x, draw_pos.y+draw_pos.height-borders.bottom.width, draw_pos.width-borders.right.width, borders.bottom.width, borders.bottom.color);
     draw_rect(hdc, draw_pos.x, draw_pos.y, borders.left.width, draw_pos.height, borders.left.color);
-    draw_rect(hdc, draw_pos.x+draw_pos.width, draw_pos.y, borders.right.width, draw_pos.height, borders.right.color);
+    draw_rect(hdc, draw_pos.x+draw_pos.width-borders.right.width, draw_pos.y, borders.right.width, draw_pos.height, borders.right.color);
 }
 
 void test_container::set_caption(const litehtml::tchar_t* caption) {
@@ -275,6 +301,14 @@ void test_container::transform_text(litehtml::tstring& text, litehtml::text_tran
 
 void test_container::import_css(litehtml::tstring& text, const litehtml::tstring& url, litehtml::tstring& baseurl) {
 	std::cout << "import_css: base=" << baseurl << ", url=" << url << std::endl;
+
+    std::ifstream t(url);
+    std::stringstream buffer;
+    buffer << t.rdbuf();
+
+    // std::cout << std::endl << buffer.str() << std::endl << std::endl;
+
+    text = buffer.str();
 }
 
 void test_container::set_clip(const litehtml::position& pos, const litehtml::border_radiuses& bdr_radius, bool valid_x, bool valid_y) {
