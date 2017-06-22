@@ -17,4 +17,12 @@ freetype2 version 18.3.12 <br/>
 
 TODO: finish test_container.cpp (a litehtml::document_container)
 
+### Oliver:
+
+I added 'toolchain_file' to be used by cmake for cross-compiling to arm.
+You'll have to replace '/mnt/beagle' with your mountpoint.
+The cmake command is: cmake -DCMAKE_TOOLCHAIN_FILE=toolchain_file .
+
+For more info: http://www.vtk.org/Wiki/CMake_Cross_Compiling
+
 ---
