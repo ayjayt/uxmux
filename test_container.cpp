@@ -397,11 +397,11 @@ void test_container::link(const std::shared_ptr<litehtml::document>& doc, const 
 }
 
 void test_container::on_anchor_click(const litehtml::tchar_t* url, const litehtml::element::ptr& el) {
-	std::cout << "on_anchor_click" << std::endl;
+	std::cout << "on_anchor_click: " << url << std::endl;
 }
 
 void test_container::set_cursor(const litehtml::tchar_t* cursor) {
-	std::cout << "set_cursor" << std::endl;
+	std::cout << "set_cursor: " << cursor << std::endl;
 }
 
 void test_container::transform_text(litehtml::tstring& text, litehtml::text_transform tt) {

@@ -17,17 +17,14 @@
 #define MOUSE_CLICK_FILE "/dev/input/mouse0"
 
 void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, test_container painter, struct fb_var_screeninfo vinfo);
-bool update(litehtml::document::ptr doc, unsigned char click_ie, int x, int y);
+bool update(litehtml::document::ptr doc, unsigned char click_ie, int x, int y, bool* redraw);
 litehtml::uint_ptr get_drawable(struct fb_fix_screeninfo *_finfo, struct fb_var_screeninfo *_vinfo);
+unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret);
 
 int main(int argc, char* argv[]) {
 	if (argc!=3) {
 		std::cout << "usage: " << argv[0] << " <html_file> <master_css>" << std::endl;
 	} else {
-
-	    struct input_event move_ie;
-	    unsigned char click_ie;
-
 		int mmf, mcf;
 		if ((mmf = open(MOUSE_MOVE_FILE, O_RDONLY))==-1) {
 			std::cout << "ERROR opening MOUSE_MOVE_FILE" << std::endl;
@@ -74,143 +71,22 @@ int main(int argc, char* argv[]) {
 		litehtml::document::ptr doc;
 		doc = litehtml::document::createFromString(buffer.str().c_str(), &painter, &context);
 
-		bool done = false;
-
-		/* Initialize file descriptor sets */
-		fd_set read_fds, write_fds, except_fds;
-		FD_ZERO(&read_fds);
-		FD_ZERO(&write_fds);
-		FD_ZERO(&except_fds);
-		FD_SET(mcf, &read_fds);
-
-		/* Set timeout to 1.0 seconds */
-		struct timeval timeout;
-		timeout.tv_sec = 1;
-		timeout.tv_usec = 0;
-
+		bool done = false, redraw = true;
 		int x=-1, y=-1;
-		bool y_flag=false, x_flag=false;
-		time_t timev;
+		unsigned char click_ie;
+
 		int tty_fd = open("/dev/tty0", O_RDWR);
 		ioctl(tty_fd, KDSETMODE, KD_GRAPHICS);
+
+		/* Main program loop */
 		while (!done) {
-			click_ie = 0;
-			/* Mouse Reference:
-				mcf: 1 byte:
-		            left = data[0] & 0x1;
-		            right = data[0] & 0x2;
-		            middle = data[0] & 0x4;
+			if (redraw)
+				render(hdc, doc, painter, vinfo);
 
-				 mmf: type=3, time->time
-					code=0 -> x
-					code=1 -> y
-					value -> val
-			*/
-
-			/* Wait for input to become ready or until the time out; the first parameter is
-				 1 more than the largest file descriptor in any of the sets */
-			if (select(mcf + 1, &read_fds, &write_fds, &except_fds, &timeout) == 1) {
-				time(&timev);
-				read(mcf, &click_ie, sizeof(unsigned char));
-				printf("click %d at pos (%d,%d) at time %ld\n", click_ie, x, y, timev);
-
-				if (click_ie & 0x1) {
-					y_flag=false;
-					x_flag=false;
-					FD_ZERO(&read_fds);
-					FD_ZERO(&write_fds);
-					FD_ZERO(&except_fds);
-					FD_SET(mmf, &read_fds);
-					timeout.tv_sec = 0;
-					timeout.tv_usec = 1;
-					if (select(mmf + 1, &read_fds, &write_fds, &except_fds, &timeout) == 1) {
-						read(mmf, &move_ie, sizeof(struct input_event));
-						while (move_ie.type==0)
-							read(mmf, &move_ie, sizeof(struct input_event));
-						// printf("time %ld.%06ld\ttype %d\tcode %d\tvalue %d\n", move_ie.time.tv_sec, move_ie.time.tv_usec, move_ie.type, move_ie.code, move_ie.value);
-						if (move_ie.code) {
-							y = move_ie.value;
-							y_flag = true;
-						} else {
-							x = move_ie.value;
-							x_flag = true;
-						}
-						FD_ZERO(&read_fds);
-						FD_ZERO(&write_fds);
-						FD_ZERO(&except_fds);
-						FD_SET(mmf, &read_fds);
-						timeout.tv_sec = 0;
-						timeout.tv_usec = 1;
-						while (!y_flag || !x_flag) {
-							if (select(mmf + 1, &read_fds, &write_fds, &except_fds, &timeout) == 1) {
-								read(mmf, &move_ie, sizeof(struct input_event));
-								while (move_ie.type==0) {
-									FD_ZERO(&read_fds);
-									FD_ZERO(&write_fds);
-									FD_ZERO(&except_fds);
-									FD_SET(mmf, &read_fds);
-									timeout.tv_sec = 0;
-									timeout.tv_usec = 1;
-									if (select(mmf + 1, &read_fds, &write_fds, &except_fds, &timeout) == 1)
-										read(mmf, &move_ie, sizeof(struct input_event));
-									else break;
-								}
-								// printf("time %ld.%06ld\ttype %d\tcode %d\tvalue %d\n", move_ie.time.tv_sec, move_ie.time.tv_usec, move_ie.type, move_ie.code, move_ie.value);
-								if (move_ie.type && move_ie.code && !y_flag) {
-									y = move_ie.value;
-									y_flag = true;
-								} else if (move_ie.type && !move_ie.code && !x_flag) {
-									x = move_ie.value;
-									x_flag = true;
-								}
-								FD_ZERO(&read_fds);
-								FD_ZERO(&write_fds);
-								FD_ZERO(&except_fds);
-								FD_SET(mmf, &read_fds);
-								timeout.tv_sec = 0;
-								timeout.tv_usec = 1;
-							} else break;
-						}
-						FD_ZERO(&read_fds);
-						FD_ZERO(&write_fds);
-						FD_ZERO(&except_fds);
-						FD_SET(mmf, &read_fds);
-						timeout.tv_sec = 0;
-						timeout.tv_usec = 10;
-						while(1) {
-							if (select(mmf + 1, &read_fds, &write_fds, &except_fds, &timeout) == 1) {
-								read(mmf, &move_ie, sizeof(struct input_event));
-								FD_ZERO(&read_fds);
-								FD_ZERO(&write_fds);
-								FD_ZERO(&except_fds);
-								FD_SET(mmf, &read_fds);
-								timeout.tv_sec = 0;
-								timeout.tv_usec = 10;
-							} else break;
-						}
-					}
-				}
-
-				FD_ZERO(&read_fds);
-				FD_ZERO(&write_fds);
-				FD_ZERO(&except_fds);
-				FD_SET(mcf, &read_fds);
-				timeout.tv_sec = 1;
-				timeout.tv_usec = 0;
-			} else {
-			    /* timeout or error */
-				// printf("click none\n");
-				FD_ZERO(&read_fds);
-				FD_ZERO(&write_fds);
-				FD_ZERO(&except_fds);
-				FD_SET(mcf, &read_fds);
-				timeout.tv_sec = 1;
-				timeout.tv_usec = 0;
-			}
-
-			render(hdc, doc, painter, vinfo);
-			done = update(doc, click_ie, x, y);
+			click_ie = handle_mouse(mcf, mmf, &x, &y);
+			done = update(doc, click_ie, x, y, &redraw);
 		}
+
 		ioctl(tty_fd, KDSETMODE, KD_TEXT);
 		std::cout << "Completed." << std::endl;
 	}
@@ -227,9 +103,6 @@ void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, test_container 
 
 		painter.swap_buffer(hdc);
 
-		// int tty_fd = open("/dev/tty0", O_RDWR);
-		// ioctl(tty_fd, KDSETMODE, KD_GRAPHICS);
-
 		/* Hold the rendered screen for 2 seconds*/
 		// struct timespec tim, tim2;
 		// tim.tv_sec = 2;
@@ -239,16 +112,16 @@ void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, test_container 
 
 		/* Hold screen until enter key is pressed*/
 		// while (std::cin.get() != '\n');
-
-		// ioctl(tty_fd, KDSETMODE, KD_TEXT);
 }
 
-bool update(litehtml::document::ptr doc, unsigned char click_ie, int x, int y) {
+/* Returns true when ready to stop program */
+bool update(litehtml::document::ptr doc, unsigned char click_ie, int x, int y, bool* redraw) {
 	litehtml::position::vector redraw_box;
-	doc->on_mouse_over(x, y, /*client_x*/ x, /*client_y*/ y, redraw_box);
-	if (click_ie&0x1) doc->on_lbutton_down(x, y, /*client_x*/ x, /*client_y*/ y, redraw_box);
-	// doc->on_lbutton_up(x, y, /*client_x*/ x, /*client_y*/ y, redraw_box);
-	// doc->on_mouse_leave(redraw_box);
+	*redraw = false;
+	*redraw |= doc->on_mouse_over(x, y, /*client_x*/ x, /*client_y*/ y, redraw_box);
+	if (click_ie&0x1) *redraw |= doc->on_lbutton_down(x, y, /*client_x*/ x, /*client_y*/ y, redraw_box);
+	// *redraw |= doc->on_lbutton_up(x, y, /*client_x*/ x, /*client_y*/ y, redraw_box);
+	// *redraw |= doc->on_mouse_leave(redraw_box);
 	return click_ie&0x2;
 }
 
@@ -272,4 +145,103 @@ litehtml::uint_ptr get_drawable(struct fb_fix_screeninfo *_finfo, struct fb_var_
 	*_vinfo = vinfo;
 
 	return fbp;
+}
+
+/* Mouse Reference:
+	mcf (click): 1 byte:
+		left = data[0] & 0x1;
+		right = data[0] & 0x2;
+		middle = data[0] & 0x4;
+
+	mmf (move): type=3, time->time
+		code=0 -> x
+		code=1 -> y
+		value -> val
+*/
+unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret) {
+	fd_set read_fds, write_fds, except_fds;
+	struct timeval timeout;
+	struct input_event move_ie;
+
+	unsigned char click_ie = 0;
+	bool y_flag=false, x_flag=false;
+	int x = *x_ret, y = *y_ret;
+
+	/* Initialize file descriptor sets and set timeout */
+	#define fd_ready_select(fd, sec, usec) \
+		FD_ZERO(&read_fds); \
+		FD_ZERO(&write_fds); \
+		FD_ZERO(&except_fds); \
+		FD_SET(fd, &read_fds); \
+		timeout.tv_sec = sec; \
+		timeout.tv_usec = usec;
+
+	/* Set timeout to 1.0 seconds */
+	fd_ready_select(mcf, 1, 0);
+
+	/* Update mouse click */
+	if (select(mcf + 1, &read_fds, &write_fds, &except_fds, &timeout) == 1) {
+		time_t timev;
+		time(&timev);
+		read(mcf, &click_ie, sizeof(unsigned char));
+		printf("click %d at pos (%d,%d) at time %ld\n", click_ie, x, y, timev);
+	} else {
+		/* timeout or error */
+		// std::cout << "click none" << std::endl;
+	}
+
+	/* Set timeout to 1.0 microseconds */
+	fd_ready_select(mmf, 0, 1);
+
+	/* Update mouse movement */
+	if (select(mmf + 1, &read_fds, &write_fds, &except_fds, &timeout) == 1) {
+		read(mmf, &move_ie, sizeof(struct input_event));
+		while (move_ie.type==0)
+			read(mmf, &move_ie, sizeof(struct input_event));
+		// printf("time %ld.%06ld\ttype %d\tcode %d\tvalue %d\n", move_ie.time.tv_sec, move_ie.time.tv_usec, move_ie.type, move_ie.code, move_ie.value);
+		if (move_ie.code) {
+			y = move_ie.value;
+			y_flag = true;
+		} else {
+			x = move_ie.value;
+			x_flag = true;
+		}
+		/* Set timeout to 1.0 microseconds */
+		fd_ready_select(mmf, 0, 1);
+		while (!y_flag || !x_flag) {
+			if (select(mmf + 1, &read_fds, &write_fds, &except_fds, &timeout) == 1) {
+				read(mmf, &move_ie, sizeof(struct input_event));
+				while (move_ie.type==0) {
+					/* Set timeout to 1.0 microseconds */
+					fd_ready_select(mmf, 0, 1);
+					if (select(mmf + 1, &read_fds, &write_fds, &except_fds, &timeout) == 1)
+						read(mmf, &move_ie, sizeof(struct input_event));
+					else break;
+				}
+				// printf("time %ld.%06ld\ttype %d\tcode %d\tvalue %d\n", move_ie.time.tv_sec, move_ie.time.tv_usec, move_ie.type, move_ie.code, move_ie.value);
+				if (move_ie.type && move_ie.code && !y_flag) {
+					y = move_ie.value;
+					y_flag = true;
+				} else if (move_ie.type && !move_ie.code && !x_flag) {
+					x = move_ie.value;
+					x_flag = true;
+				}
+				/* Set timeout to 1.0 microseconds */
+				fd_ready_select(mmf, 0, 1);
+			} else break;
+		}
+		/* Set timeout to 10.0 microseconds */
+		fd_ready_select(mmf, 0, 10);
+		while(1) {
+			if (select(mmf + 1, &read_fds, &write_fds, &except_fds, &timeout) == 1) {
+				read(mmf, &move_ie, sizeof(struct input_event));
+				/* Set timeout to 10.0 microseconds */
+				fd_ready_select(mmf, 0, 10);
+			} else break;
+		}
+	}
+
+	*x_ret = x;
+	*y_ret = y;
+	return click_ie;
 }
