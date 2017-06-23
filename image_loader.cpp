@@ -2,6 +2,7 @@
 #include <iostream>
 
 image_loader::image_loader() {
+    std::cout << "ctor image_loader" << std::endl;
     m_file_type = none;
     m_png_ptr = 0;
     m_info_ptr = 0;
@@ -9,6 +10,7 @@ image_loader::image_loader() {
 }
 
 image_loader::~image_loader() {
+    std::cout << "dtor ~image_loader" << std::endl;
     destroy();
 }
 
@@ -155,7 +157,6 @@ int image_loader::png_size(const char *name, int *x, int *y) {
     png_infop info_ptr;
     png_uint_32 width, height;
     int bit_depth, color_type, interlace_type;
-    char *rp;
     FILE *fh;
 
     if(!(fh=fopen(name,"rb"))) return(FH_ERROR_FILE);

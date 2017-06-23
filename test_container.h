@@ -10,6 +10,7 @@
 class test_container : public litehtml::document_container {
 private:
 	std::unordered_map<std::string, litehtml::uint_ptr> m_fonts;
+	bool m_delete_flag;
 
     image_loader m_image_loader;
 

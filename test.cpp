@@ -10,6 +10,8 @@
 
 #include "test_container.h"
 
+void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, test_container painter, struct fb_var_screeninfo vinfo);
+bool update(litehtml::document::ptr doc);
 litehtml::uint_ptr get_drawable(struct fb_fix_screeninfo *_finfo, struct fb_var_screeninfo *_vinfo);
 
 int main(int argc, char* argv[]) {
@@ -50,9 +52,22 @@ int main(int argc, char* argv[]) {
 		std::cout << "load_master_stylesheet" << std::endl;
 		context.load_master_stylesheet(buffer2.str().c_str());
 		std::cout << "createFromString" << std::endl;
-		litehtml::document::ptr doc = litehtml::document::createFromString(buffer.str().c_str(), &painter, &context);
+		litehtml::document::ptr doc;
+		doc = litehtml::document::createFromString(buffer.str().c_str(), &painter, &context);
 
-		/* Render and draw to the screen*/
+		bool done = false;
+		while (!done) {
+			render(hdc, doc, painter, vinfo);
+			done = update(doc);
+		}
+		std::cout << "Completed." << std::endl;
+	}
+
+	return 0;
+}
+
+/* Render and draw to the screen*/
+void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, test_container painter, struct fb_var_screeninfo vinfo) {
 		std::cout << "rendering.." << std::endl;
 		doc->render(vinfo.xres);
 		std::cout << "drawing.." << std::endl;
@@ -74,11 +89,14 @@ int main(int argc, char* argv[]) {
 		while (std::cin.get() != '\n');
 
 		ioctl(tty_fd, KDSETMODE, KD_TEXT);
+}
 
-		std::cout << "Completed." << std::endl;
-	}
-
-	return 0;
+bool update(litehtml::document::ptr doc) {
+// 	bool							on_mouse_over(int x, int y, int client_x, int client_y, position::vector& redraw_boxes);
+// 	bool							on_lbutton_down(int x, int y, int client_x, int client_y, position::vector& redraw_boxes);
+// 	bool							on_lbutton_up(int x, int y, int client_x, int client_y, position::vector& redraw_boxes);
+// 	bool							on_mouse_leave(position::vector& redraw_boxes);
+	return true;
 }
 
 /* Get fb0 as a drawable object */

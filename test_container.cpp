@@ -8,6 +8,7 @@
 
 test_container::test_container(std::string prefix, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo) {
     std::cout << "ctor test_container" << std::endl;
+    m_delete_flag = false;
 
     /* Setup Font Library */
     FT_Init_FreeType(&m_library);
@@ -26,9 +27,11 @@ test_container::test_container(std::string prefix, struct fb_fix_screeninfo* fin
 
 test_container::~test_container(void) {
 	std::cout << "dtor ~test_container" << std::endl;
-
-    FT_Done_Face(m_face);
-    FT_Done_FreeType(m_library);
+    if (m_delete_flag && m_library) {
+        std::cout << "clean up FontLibrary" << std::endl;
+        FT_Done_FreeType(m_library);
+        m_library = 0;
+    }
 }
 
 inline uint32_t test_container::pixel_color(uint8_t r, uint8_t g, uint8_t b, struct fb_var_screeninfo *vinfo) {
@@ -111,6 +114,7 @@ litehtml::uint_ptr test_container::create_font(const litehtml::tchar_t* faceName
                     std::cout << "   Error loading: fonts/" << keyalt << ".tff" << std::endl << "   Looking in system instead.." << std::endl;
                     if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+keyalt+".ttf").c_str(), 0, &m_face)) {
                         std::cout << "   WARNING: " << key << ".tff (alt " << keyalt << ".tff)" << " could not be found." << std::endl;
+                        m_library = 0;
                         return 0;
                     }
                 }
@@ -149,7 +153,7 @@ litehtml::uint_ptr test_container::create_font(const litehtml::tchar_t* faceName
 
         std::cout << "   height=" << fm->height << ", ascent=" << fm->ascent << ", descent=" << fm->descent << ", x_height=" << fm->x_height << std::endl;
 
-        return m_face;
+        return reinterpret_cast<litehtml::uint_ptr>(m_face);
     }
 
     return 0;
@@ -157,6 +161,9 @@ litehtml::uint_ptr test_container::create_font(const litehtml::tchar_t* faceName
 
 void test_container::delete_font(litehtml::uint_ptr hFont) {
     std::cout << "delete_font" << std::endl;
+    if (hFont)
+        FT_Done_Face(reinterpret_cast<FT_Face>(hFont));
+    m_delete_flag = true;
 }
 
 int test_container::text_width(const litehtml::tchar_t* text, litehtml::uint_ptr hFont) {
