@@ -9,6 +9,7 @@
 #include <linux/kd.h>
 #include <linux/input.h>
 #include <sys/ioctl.h>
+#include <sys/select.h>
 
 #include "test_container.h"
 
@@ -36,6 +37,7 @@ int main(int argc, char* argv[]) {
 			mmf = 0;
 			mcf = 0;
 		}
+
 
 		// /* Read the given file and print its contents to the screen */
 		// std::cout << "Reading file " << argv[1] << " as HTML:" << std::endl << std::endl;
@@ -75,24 +77,136 @@ int main(int argc, char* argv[]) {
 
 		bool done = false;
 
-		/*
-		mcf: 1 byte:
-            left = data[0] & 0x1;
-            right = data[0] & 0x2;
-            middle = data[0] & 0x4;
+		/* Initialize file descriptor sets */
+		fd_set read_fds, write_fds, except_fds;
+		FD_ZERO(&read_fds);
+		FD_ZERO(&write_fds);
+		FD_ZERO(&except_fds);
+		FD_SET(mcf, &read_fds);
 
-		 mmf: type=3, time->time
-			code=0 -> x
-			code=1 -> y
-			value -> val
-		*/
+		/* Set timeout to 1.0 seconds */
+		struct timeval timeout;
+		timeout.tv_sec = 1;
+		timeout.tv_usec = 0;
+
+		char byte;
+		int x=-1, y=-1;
+		bool y_flag=false, x_flag=false;
+		time_t timev;
 		while (!done) {
-			read(mcf, &click_ie, sizeof(unsigned char));
-			printf("click %d\n", click_ie);
-			if (click_ie&0x7) {
-				read(mmf, &move_ie, sizeof(struct input_event));
-				printf("time %ld.%06ld\ttype %d\tcode %d\tvalue %d\n", move_ie.time.tv_sec, move_ie.time.tv_usec, move_ie.type, move_ie.code, move_ie.value);
+			/* Mouse Reference:
+				mcf: 1 byte:
+		            left = data[0] & 0x1;
+		            right = data[0] & 0x2;
+		            middle = data[0] & 0x4;
+
+				 mmf: type=3, time->time
+					code=0 -> x
+					code=1 -> y
+					value -> val
+			*/
+
+			/* Wait for input to become ready or until the time out; the first parameter is
+				 1 more than the largest file descriptor in any of the sets */
+			if (select(mcf + 1, &read_fds, &write_fds, &except_fds, &timeout) == 1) {
+				time(&timev);
+				read(mcf, &click_ie, sizeof(unsigned char));
+				printf("click %d at pos (%d,%d) at time %ld\n", click_ie, x, y, timev);
+
+				if (click_ie & 0x1) {
+					y_flag=false;
+					x_flag=false;
+					FD_ZERO(&read_fds);
+					FD_ZERO(&write_fds);
+					FD_ZERO(&except_fds);
+					FD_SET(mmf, &read_fds);
+					timeout.tv_sec = 0;
+					timeout.tv_usec = 1;
+					if (select(mmf + 1, &read_fds, &write_fds, &except_fds, &timeout) == 1) {
+						read(mmf, &move_ie, sizeof(struct input_event));
+						while (move_ie.type==0)
+							read(mmf, &move_ie, sizeof(struct input_event));
+						printf("time %ld.%06ld\ttype %d\tcode %d\tvalue %d\n", move_ie.time.tv_sec, move_ie.time.tv_usec, move_ie.type, move_ie.code, move_ie.value);
+						if (move_ie.code) {
+							y = move_ie.value;
+							y_flag = true;
+						} else {
+							x = move_ie.value;
+							x_flag = true;
+						}
+						FD_ZERO(&read_fds);
+						FD_ZERO(&write_fds);
+						FD_ZERO(&except_fds);
+						FD_SET(mmf, &read_fds);
+						timeout.tv_sec = 0;
+						timeout.tv_usec = 1;
+						while (!y_flag || !x_flag) {
+							if (select(mmf + 1, &read_fds, &write_fds, &except_fds, &timeout) == 1) {
+								read(mmf, &move_ie, sizeof(struct input_event));
+								while (move_ie.type==0) {
+									FD_ZERO(&read_fds);
+									FD_ZERO(&write_fds);
+									FD_ZERO(&except_fds);
+									FD_SET(mmf, &read_fds);
+									timeout.tv_sec = 0;
+									timeout.tv_usec = 1;
+									if (select(mmf + 1, &read_fds, &write_fds, &except_fds, &timeout) == 1)
+										read(mmf, &move_ie, sizeof(struct input_event));
+									else break;
+								}
+								printf("time %ld.%06ld\ttype %d\tcode %d\tvalue %d\n", move_ie.time.tv_sec, move_ie.time.tv_usec, move_ie.type, move_ie.code, move_ie.value);
+								if (move_ie.type && move_ie.code && !y_flag) {
+									y = move_ie.value;
+									y_flag = true;
+								} else if (move_ie.type && !move_ie.code && !x_flag) {
+									x = move_ie.value;
+									x_flag = true;
+								}
+								FD_ZERO(&read_fds);
+								FD_ZERO(&write_fds);
+								FD_ZERO(&except_fds);
+								FD_SET(mmf, &read_fds);
+								timeout.tv_sec = 0;
+								timeout.tv_usec = 1;
+							} else break;
+						}
+						FD_ZERO(&read_fds);
+						FD_ZERO(&write_fds);
+						FD_ZERO(&except_fds);
+						FD_SET(mmf, &read_fds);
+						timeout.tv_sec = 0;
+						timeout.tv_usec = 10;
+						while(1) {
+							if (select(mmf + 1, &read_fds, &write_fds, &except_fds, &timeout) == 1) {
+								read(mmf, &move_ie, sizeof(struct input_event));
+								FD_ZERO(&read_fds);
+								FD_ZERO(&write_fds);
+								FD_ZERO(&except_fds);
+								FD_SET(mmf, &read_fds);
+								timeout.tv_sec = 0;
+								timeout.tv_usec = 10;
+							} else break;
+						}
+					}
+				}
+
+				FD_ZERO(&read_fds);
+				FD_ZERO(&write_fds);
+				FD_ZERO(&except_fds);
+				FD_SET(mcf, &read_fds);
+				timeout.tv_sec = 1;
+				timeout.tv_usec = 0;
+			} else {
+			    /* timeout or error */
+				printf("click none\n");
+				FD_ZERO(&read_fds);
+				FD_ZERO(&write_fds);
+				FD_ZERO(&except_fds);
+				FD_SET(mcf, &read_fds);
+				timeout.tv_sec = 1;
+				timeout.tv_usec = 0;
 			}
+
 			// render(hdc, doc, painter, vinfo);
 			// done = update(doc);
 		}
