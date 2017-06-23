@@ -31,6 +31,7 @@ test_container::~test_container(void) {
         std::cout << "clean up FontLibrary" << std::endl;
         FT_Done_FreeType(m_library);
         m_library = 0;
+        m_delete_flag = false;
     }
 }
 
@@ -50,7 +51,7 @@ void test_container::draw_rect(litehtml::uint_ptr hdc, const litehtml::position&
 }
 
 void test_container::draw_rect(litehtml::uint_ptr hdc, int xpos, int ypos, int width, int height, litehtml::web_color color) {
-    std::cout << "   draw_rect, at (" << xpos << ", " << ypos << "), size (" << width << ", " << height << "), color (" << static_cast<int>(color.red) << ", " << static_cast<int>(color.green) << ", " << static_cast<int>(color.blue) << ")" << std::endl;
+    // std::cout << "   draw_rect, at (" << xpos << ", " << ypos << "), size (" << width << ", " << height << "), color (" << static_cast<int>(color.red) << ", " << static_cast<int>(color.green) << ", " << static_cast<int>(color.blue) << ")" << std::endl;
 
     long x, y;
     for (x = xpos; x < xpos + width; x++) {
@@ -71,7 +72,7 @@ void test_container::load_font(litehtml::uint_ptr hFont) {
 }
 
 litehtml::uint_ptr test_container::create_font(const litehtml::tchar_t* faceName, int size, int weight, litehtml::font_style italic, unsigned int decoration, litehtml::font_metrics* fm) {
-	std::cout << "create_font: " << faceName << ", size="<< size << ", weight="<< weight << ", style="<< italic << ", decoration="<< decoration << std::endl;
+	// std::cout << "create_font: " << faceName << ", size="<< size << ", weight="<< weight << ", style="<< italic << ", decoration="<< decoration << std::endl;
 
     if (faceName) {
 
@@ -86,7 +87,7 @@ litehtml::uint_ptr test_container::create_font(const litehtml::tchar_t* faceName
         }
         name.erase(std::remove(name.begin(), name.end(), '"'), name.end());
         name.erase(std::remove(name.begin(), name.end(), ','), name.end());
-        std::cout << "   Parsed Name : " << name << std::endl;
+        // std::cout << "   Parsed Name : " << name << std::endl;
 
         std::string key = name;
         std::string keyalt = name;
@@ -107,11 +108,11 @@ litehtml::uint_ptr test_container::create_font(const litehtml::tchar_t* faceName
             return m_fonts[key+std::to_string(decoration)+std::to_string(size)];
 
         if (FT_New_Face(m_library, (m_directory+"fonts/"+key+".ttf").c_str(), 0, &m_face)) {
-            std::cout << "   Error loading: fonts/" << key << ".tff" << std::endl << "   Looking in system instead.." << std::endl;
+            // std::cout << "   Error loading: fonts/" << key << ".tff" << std::endl << "   Looking in system instead.." << std::endl;
             if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+key+".ttf").c_str(), 0, &m_face)) {
-                std::cout << "   Not found. Trying alternative: fonts/" << keyalt << ".tff" << std::endl;
+                // std::cout << "   Not found. Trying alternative: fonts/" << keyalt << ".tff" << std::endl;
                 if (FT_New_Face(m_library, (m_directory+"fonts/"+keyalt+".ttf").c_str(), 0, &m_face)) {
-                    std::cout << "   Error loading: fonts/" << keyalt << ".tff" << std::endl << "   Looking in system instead.." << std::endl;
+                    // std::cout << "   Error loading: fonts/" << keyalt << ".tff" << std::endl << "   Looking in system instead.." << std::endl;
                     if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+keyalt+".ttf").c_str(), 0, &m_face)) {
                         std::cout << "   WARNING: " << key << ".tff (alt " << keyalt << ".tff)" << " could not be found." << std::endl;
                         m_library = 0;
@@ -151,7 +152,7 @@ litehtml::uint_ptr test_container::create_font(const litehtml::tchar_t* faceName
 
         fm->x_height = m_slot->bitmap_top;
 
-        std::cout << "   height=" << fm->height << ", ascent=" << fm->ascent << ", descent=" << fm->descent << ", x_height=" << fm->x_height << std::endl;
+        // std::cout << "   height=" << fm->height << ", ascent=" << fm->ascent << ", descent=" << fm->descent << ", x_height=" << fm->x_height << std::endl;
 
         return reinterpret_cast<litehtml::uint_ptr>(m_face);
     }
@@ -205,12 +206,12 @@ int test_container::text_width(const litehtml::tchar_t* text, litehtml::uint_ptr
 }
 
 void test_container::draw_text(litehtml::uint_ptr hdc, const litehtml::tchar_t* text, litehtml::uint_ptr hFont, litehtml::web_color color, const litehtml::position& pos) {
-	std::cout << "draw_text: " << text << ", at (" << pos.x << ", " << pos.y << "), size (" << pos.width << ", " << pos.height << "), color (" << static_cast<int>(color.red) << ", " << static_cast<int>(color.green) << ", " << static_cast<int>(color.blue) << ")" << std::endl;
+	// std::cout << "draw_text: " << text << ", at (" << pos.x << ", " << pos.y << "), size (" << pos.width << ", " << pos.height << "), color (" << static_cast<int>(color.red) << ", " << static_cast<int>(color.green) << ", " << static_cast<int>(color.blue) << ")" << std::endl;
 
     load_font(hFont);
     if (!m_face) return;
 
-    std::cout << "   decoration: " << m_face->generic.data << std::endl;
+    // std::cout << "   decoration: " << m_face->generic.data << std::endl;
 
     int xpos = pos.x;
     int ypos = pos.y + m_face->size->metrics.descender/32;
@@ -337,21 +338,21 @@ const litehtml::tchar_t* test_container::get_default_font_name() const{
         };
 */
 void test_container::draw_list_marker(litehtml::uint_ptr hdc, const litehtml::list_marker& marker) {
-	std::cout << "draw_list_marker " << marker.image << " at " << marker.pos.x << ", " << marker.pos.y << std::endl;
+	// std::cout << "draw_list_marker " << marker.image << " at " << marker.pos.x << ", " << marker.pos.y << std::endl;
     draw_rect(hdc, marker.pos.x, marker.pos.y, marker.pos.width, marker.pos.height, marker.color);
 }
 
 void test_container::load_image(const litehtml::tchar_t* src, const litehtml::tchar_t* baseurl, bool redraw_on_ready) {
-	std::cout << "load_image: " << src << std::endl;
+	// std::cout << "load_image: " << src << std::endl;
 }
 
 void test_container::get_image_size(const litehtml::tchar_t* src, const litehtml::tchar_t* baseurl, litehtml::size& sz) {
-	std::cout << "get_image_size: " << src << std::endl;
+	// std::cout << "get_image_size: " << src << std::endl;
     m_image_loader.image_size((m_directory+src).c_str(), &sz.width, &sz.height);
 }
 
 void test_container::draw_background(litehtml::uint_ptr hdc, const litehtml::background_paint& bg) {
-	std::cout << "draw_background: " << bg.image << " at " << bg.position_x << ", " << bg.position_y << std::endl;
+	// std::cout << "draw_background: " << bg.image << " at " << bg.position_x << ", " << bg.position_y << std::endl;
     if (strcmp(bg.image.c_str(), "")!=0)
         if (!m_image_loader.load_image((m_directory+bg.image).c_str()))
             if (!m_image_loader.copy_to_framebuffer(hdc, m_finfo, m_vinfo, bg.position_x, bg.position_y))
@@ -376,7 +377,7 @@ void test_container::draw_background(litehtml::uint_ptr hdc, const litehtml::bac
         };
 */
 void test_container::draw_borders(litehtml::uint_ptr hdc, const litehtml::borders& borders, const litehtml::position& draw_pos, bool root) {
-	std::cout << "draw_borders" << std::endl;
+	// std::cout << "draw_borders" << std::endl;
     draw_rect(hdc, draw_pos.x, draw_pos.y, draw_pos.width-borders.right.width, borders.top.width, borders.top.color);
     draw_rect(hdc, draw_pos.x, draw_pos.y+draw_pos.height-borders.bottom.width, draw_pos.width-borders.right.width, borders.bottom.width, borders.bottom.color);
     draw_rect(hdc, draw_pos.x, draw_pos.y, borders.left.width, draw_pos.height, borders.left.color);
@@ -384,11 +385,11 @@ void test_container::draw_borders(litehtml::uint_ptr hdc, const litehtml::border
 }
 
 void test_container::set_caption(const litehtml::tchar_t* caption) {
-	std::cout << "set_caption: " << caption << std::endl;
+	// std::cout << "set_caption: " << caption << std::endl;
 }
 
 void test_container::set_base_url(const litehtml::tchar_t* base_url) {
-	std::cout << "set_base_url" << std::endl;
+	// std::cout << "set_base_url" << std::endl;
 }
 
 void test_container::link(const std::shared_ptr<litehtml::document>& doc, const litehtml::element::ptr& el) {
@@ -408,10 +409,10 @@ void test_container::transform_text(litehtml::tstring& text, litehtml::text_tran
 }
 
 void test_container::import_css(litehtml::tstring& text, const litehtml::tstring& url, litehtml::tstring& baseurl) {
-	std::cout << "import_css: base=" << baseurl << ", url=" << url << std::endl;
+	// std::cout << "import_css: base=" << baseurl << ", url=" << url << std::endl;
 
     std::ifstream t(m_directory+url);
-    std::cout << "    " << m_directory << ", url=" << url << std::endl;
+    // std::cout << "    " << m_directory << ", url=" << url << std::endl;
     std::stringstream buffer;
     buffer << t.rdbuf();
 
@@ -421,11 +422,11 @@ void test_container::import_css(litehtml::tstring& text, const litehtml::tstring
 }
 
 void test_container::set_clip(const litehtml::position& pos, const litehtml::border_radiuses& bdr_radius, bool valid_x, bool valid_y) {
-	std::cout << "set_clip" << std::endl;
+	// std::cout << "set_clip" << std::endl;
 }
 
 void test_container::del_clip() {
-	std::cout << "del_clip" << std::endl;
+	// std::cout << "del_clip" << std::endl;
 }
 
 void test_container::get_client_rect(litehtml::position& client) const{
@@ -437,12 +438,12 @@ void test_container::get_client_rect(litehtml::position& client) const{
 }
 
 std::shared_ptr<litehtml::element> test_container::create_element(const litehtml::tchar_t* tag_name, const litehtml::string_map& attributes, const std::shared_ptr<litehtml::document>& doc) {
-	std::cout << "create_element: " << tag_name << std::endl;
+	// std::cout << "create_element: " << tag_name << std::endl;
 	return 0;
 }
 
 void test_container::get_media_features(litehtml::media_features& media) const{
-	std::cout << "get_media_features" << std::endl;
+	// std::cout << "get_media_features" << std::endl;
     litehtml::position client;
     get_client_rect(client);
     media.type = litehtml::media_type_screen;

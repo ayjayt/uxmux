@@ -17,7 +17,7 @@
 #define MOUSE_CLICK_FILE "/dev/input/mouse0"
 
 void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, test_container painter, struct fb_var_screeninfo vinfo);
-bool update(litehtml::document::ptr doc);
+bool update(litehtml::document::ptr doc, unsigned char click_ie, int x, int y);
 litehtml::uint_ptr get_drawable(struct fb_fix_screeninfo *_finfo, struct fb_var_screeninfo *_vinfo);
 
 int main(int argc, char* argv[]) {
@@ -38,42 +38,41 @@ int main(int argc, char* argv[]) {
 			mcf = 0;
 		}
 
+		/* Read the given file and print its contents to the screen */
+		std::cout << "Reading file " << argv[1] << " as HTML:" << std::endl << std::endl;
 
-		// /* Read the given file and print its contents to the screen */
-		// std::cout << "Reading file " << argv[1] << " as HTML:" << std::endl << std::endl;
+		std::string path = argv[1];
+		std::string prefix = "";
+		if (std::count(path.begin(), path.end(), '/') > 0)
+			prefix = path.substr(0, path.find_last_of('/'));
 
-		// std::string path = argv[1];
-		// std::string prefix = "";
-		// if (std::count(path.begin(), path.end(), '/') > 0)
-		// 	prefix = path.substr(0, path.find_last_of('/'));
+		std::ifstream t(argv[1]);
+		std::stringstream buffer;
+		buffer << t.rdbuf();
+		std::cout << buffer.str() << std::endl;
 
-		// std::ifstream t(argv[1]);
-		// std::stringstream buffer;
-		// buffer << t.rdbuf();
-		// std::cout << buffer.str() << std::endl;
+		/* Load the master.css file */
+		std::cout << "Loading file " << argv[2] << " as Master CSS" << std::endl << std::endl;
 
-		// /* Load the master.css file */
-		// std::cout << "Loading file " << argv[2] << " as CSS" << std::endl << std::endl;
+		std::ifstream t2(argv[2]);
+		std::stringstream buffer2;
+		buffer2 << t2.rdbuf();
 
-		// std::ifstream t2(argv[2]);
-		// std::stringstream buffer2;
-		// buffer2 << t2.rdbuf();
+		/* Get references to the framebuffer to work with */
+		struct fb_fix_screeninfo finfo;
+		struct fb_var_screeninfo vinfo;
+		litehtml::uint_ptr hdc = get_drawable(&finfo, &vinfo);
 
-		// /* Get references to the framebuffer to work with */
-		// struct fb_fix_screeninfo finfo;
-		// struct fb_var_screeninfo vinfo;
-		// litehtml::uint_ptr hdc = get_drawable(&finfo, &vinfo);
+		test_container painter(prefix, &finfo, &vinfo);
+		litehtml::context context;
 
-		// test_container painter(prefix, &finfo, &vinfo);
-		// litehtml::context context;
-
-		// /* Start litehtml rendering
-		//    See: https://github.com/litehtml/litehtml/wiki/How-to-use-litehtml */
-		// std::cout << "load_master_stylesheet" << std::endl;
-		// context.load_master_stylesheet(buffer2.str().c_str());
-		// std::cout << "createFromString" << std::endl;
-		// litehtml::document::ptr doc;
-		// doc = litehtml::document::createFromString(buffer.str().c_str(), &painter, &context);
+		/* Start litehtml rendering
+		   See: https://github.com/litehtml/litehtml/wiki/How-to-use-litehtml */
+		std::cout << "load_master_stylesheet" << std::endl;
+		context.load_master_stylesheet(buffer2.str().c_str());
+		std::cout << "createFromString" << std::endl;
+		litehtml::document::ptr doc;
+		doc = litehtml::document::createFromString(buffer.str().c_str(), &painter, &context);
 
 		bool done = false;
 
@@ -89,11 +88,13 @@ int main(int argc, char* argv[]) {
 		timeout.tv_sec = 1;
 		timeout.tv_usec = 0;
 
-		char byte;
 		int x=-1, y=-1;
 		bool y_flag=false, x_flag=false;
 		time_t timev;
+		int tty_fd = open("/dev/tty0", O_RDWR);
+		ioctl(tty_fd, KDSETMODE, KD_GRAPHICS);
 		while (!done) {
+			click_ie = 0;
 			/* Mouse Reference:
 				mcf: 1 byte:
 		            left = data[0] & 0x1;
@@ -126,7 +127,7 @@ int main(int argc, char* argv[]) {
 						read(mmf, &move_ie, sizeof(struct input_event));
 						while (move_ie.type==0)
 							read(mmf, &move_ie, sizeof(struct input_event));
-						printf("time %ld.%06ld\ttype %d\tcode %d\tvalue %d\n", move_ie.time.tv_sec, move_ie.time.tv_usec, move_ie.type, move_ie.code, move_ie.value);
+						// printf("time %ld.%06ld\ttype %d\tcode %d\tvalue %d\n", move_ie.time.tv_sec, move_ie.time.tv_usec, move_ie.type, move_ie.code, move_ie.value);
 						if (move_ie.code) {
 							y = move_ie.value;
 							y_flag = true;
@@ -154,7 +155,7 @@ int main(int argc, char* argv[]) {
 										read(mmf, &move_ie, sizeof(struct input_event));
 									else break;
 								}
-								printf("time %ld.%06ld\ttype %d\tcode %d\tvalue %d\n", move_ie.time.tv_sec, move_ie.time.tv_usec, move_ie.type, move_ie.code, move_ie.value);
+								// printf("time %ld.%06ld\ttype %d\tcode %d\tvalue %d\n", move_ie.time.tv_sec, move_ie.time.tv_usec, move_ie.type, move_ie.code, move_ie.value);
 								if (move_ie.type && move_ie.code && !y_flag) {
 									y = move_ie.value;
 									y_flag = true;
@@ -198,7 +199,7 @@ int main(int argc, char* argv[]) {
 				timeout.tv_usec = 0;
 			} else {
 			    /* timeout or error */
-				printf("click none\n");
+				// printf("click none\n");
 				FD_ZERO(&read_fds);
 				FD_ZERO(&write_fds);
 				FD_ZERO(&except_fds);
@@ -207,9 +208,10 @@ int main(int argc, char* argv[]) {
 				timeout.tv_usec = 0;
 			}
 
-			// render(hdc, doc, painter, vinfo);
-			// done = update(doc);
+			render(hdc, doc, painter, vinfo);
+			done = update(doc, click_ie, x, y);
 		}
+		ioctl(tty_fd, KDSETMODE, KD_TEXT);
 		std::cout << "Completed." << std::endl;
 	}
 
@@ -225,8 +227,8 @@ void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, test_container 
 
 		painter.swap_buffer(hdc);
 
-		int tty_fd = open("/dev/tty0", O_RDWR);
-		ioctl(tty_fd, KDSETMODE, KD_GRAPHICS);
+		// int tty_fd = open("/dev/tty0", O_RDWR);
+		// ioctl(tty_fd, KDSETMODE, KD_GRAPHICS);
 
 		/* Hold the rendered screen for 2 seconds*/
 		// struct timespec tim, tim2;
@@ -236,17 +238,18 @@ void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, test_container 
 		// 	std::cout << "nanosleep failed!" << std::endl;
 
 		/* Hold screen until enter key is pressed*/
-		while (std::cin.get() != '\n');
+		// while (std::cin.get() != '\n');
 
-		ioctl(tty_fd, KDSETMODE, KD_TEXT);
+		// ioctl(tty_fd, KDSETMODE, KD_TEXT);
 }
 
-bool update(litehtml::document::ptr doc) {
-// 	bool							on_mouse_over(int x, int y, int client_x, int client_y, position::vector& redraw_boxes);
-// 	bool							on_lbutton_down(int x, int y, int client_x, int client_y, position::vector& redraw_boxes);
-// 	bool							on_lbutton_up(int x, int y, int client_x, int client_y, position::vector& redraw_boxes);
-// 	bool							on_mouse_leave(position::vector& redraw_boxes);
-	return true;
+bool update(litehtml::document::ptr doc, unsigned char click_ie, int x, int y) {
+	litehtml::position::vector redraw_box;
+	doc->on_mouse_over(x, y, /*client_x*/ x, /*client_y*/ y, redraw_box);
+	if (click_ie&0x1) doc->on_lbutton_down(x, y, /*client_x*/ x, /*client_y*/ y, redraw_box);
+	// doc->on_lbutton_up(x, y, /*client_x*/ x, /*client_y*/ y, redraw_box);
+	// doc->on_mouse_leave(redraw_box);
+	return click_ie&0x2;
 }
 
 /* Get fb0 as a drawable object */

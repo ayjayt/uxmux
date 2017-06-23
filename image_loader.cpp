@@ -15,9 +15,8 @@ image_loader::~image_loader() {
 }
 
 void image_loader::destroy() {
-    if (m_png_ptr) {
+    if (m_png_ptr)
         png_destroy_read_struct(&m_png_ptr, m_info_ptr?(&m_info_ptr):((png_infopp)NULL), (png_infopp)NULL);
-    }
     if (m_row_pointers) {
         for (m_y=0; m_y<m_height; m_y++)
             if (m_row_pointers[m_y])
@@ -51,6 +50,7 @@ int image_loader::copy_to_framebuffer(void* hdc, struct fb_fix_screeninfo* finfo
             }
         }
     }
+    destroy();
     return(FH_ERROR_OK);
 }
 
@@ -92,12 +92,15 @@ int image_loader::load_png(const char* file_name) {
     if (!m_info_ptr) {
         png_destroy_read_struct(&m_png_ptr, (png_infopp)NULL, (png_infopp)NULL);
         fclose(fp);
+        m_png_ptr = 0;
         return(FH_ERROR_FORMAT);
     }
 
     if (setjmp(png_jmpbuf(m_png_ptr))) {
         png_destroy_read_struct(&m_png_ptr, &m_info_ptr, (png_infopp)NULL);
         fclose(fp);
+        m_png_ptr = 0;
+        m_info_ptr = 0;
         return(FH_ERROR_FORMAT);
     }
 
@@ -114,11 +117,13 @@ int image_loader::load_png(const char* file_name) {
     /* read file */
     if (setjmp(png_jmpbuf(m_png_ptr))) {
         png_destroy_read_struct(&m_png_ptr, &m_info_ptr, (png_infopp)NULL);
+        m_png_ptr = 0;
+        m_info_ptr = 0;
         fclose(fp);
         return(FH_ERROR_FORMAT);
     }
 
-    std::cout << "   width: " << static_cast<int>(m_width) << ", height: " << static_cast<int>(m_height) << ", color_type: " << static_cast<int>(m_color_type) << ", bit_depth: " << static_cast<int>(m_bit_depth) << std::endl;
+    // std::cout << "   width: " << static_cast<int>(m_width) << ", height: " << static_cast<int>(m_height) << ", color_type: " << static_cast<int>(m_color_type) << ", bit_depth: " << static_cast<int>(m_bit_depth) << std::endl;
 
     /* See: http://www.vias.org/pngguide/chapter13_08.html */
 
@@ -170,11 +175,14 @@ int image_loader::png_size(const char *name, int *x, int *y) {
     if (!info_ptr) {
         png_destroy_read_struct(&png_ptr, (png_infopp)NULL, (png_infopp)NULL);
         fclose(fh);
+        m_png_ptr = 0;
         return(FH_ERROR_FORMAT);
     }
     if (setjmp(png_jmpbuf(png_ptr))) {
         png_destroy_read_struct(&png_ptr, &info_ptr, (png_infopp)NULL);
         fclose(fh);
+        m_png_ptr = 0;
+        m_info_ptr = 0;
         return(FH_ERROR_FORMAT);
     }
 
