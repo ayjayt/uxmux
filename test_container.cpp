@@ -8,9 +8,6 @@
 
 test_container::test_container(std::string prefix, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo, FT_Library library) {
     std::cout << "ctor test_container" << std::endl;
-    m_delete_flag = false;
-
-    m_library = library;
 
     if (strcmp(prefix.c_str(),"")!=0)
         m_directory = prefix+"/";
@@ -22,6 +19,14 @@ test_container::test_container(std::string prefix, struct fb_fix_screeninfo* fin
 
     m_cursor = false;
     m_new_page = "";
+    m_new_page_alt = "";
+
+    m_library = library;
+    litehtml::font_metrics fm;
+    m_default_font.font = 0;
+    m_default_font.valid = false;
+    create_font(get_default_font_name(), get_default_font_size(), 400, litehtml::font_style(0), 0, &fm);
+
     clear_screen();
 }
 
@@ -29,15 +34,40 @@ test_container::~test_container(void) {
     // std::cout << "dtor ~test_container" << std::endl;
 }
 
+void test_container::clear_fonts() {
+    if (!m_fonts.empty()) {
+        std::unordered_map<std::string, font_structure_t>::iterator it;
+        for (it=m_fonts.begin(); it!=m_fonts.end(); ++it){
+            std::cout << "   delete_font: " << it->first << std::endl;
+            if (it->second.valid && it->second.font) {
+                FT_Done_Face(it->second.font);
+                it->second.valid = false;
+                it->second.font = 0;
+            }
+        }
+        m_fonts.clear();
+    }
+}
+
 inline uint32_t test_container::pixel_color(uint8_t r, uint8_t g, uint8_t b, struct fb_var_screeninfo *vinfo) {
     return static_cast<uint32_t>(r<<vinfo->red.offset | g<<vinfo->green.offset | b<<vinfo->blue.offset);
 }
 
 std::string test_container::get_new_page() {
-    std::cout << "get_new_page" << std::endl;
+    // std::cout << "get_new_page" << std::endl;
     if (check_new_page()) {
         std::string ret(m_new_page.c_str());
         m_new_page = "";
+        return ret;
+    }
+    return 0;
+}
+
+std::string test_container::get_new_page_alt() {
+    // std::cout << "get_new_page_alt" << std::endl;
+    if (check_new_page_alt()) {
+        std::string ret(m_new_page_alt.c_str());
+        m_new_page_alt = "";
         return ret;
     }
     return 0;
@@ -91,14 +121,28 @@ void test_container::draw_rect(litehtml::uint_ptr hdc, int xpos, int ypos, int w
 }
 
 void test_container::load_font(litehtml::uint_ptr hFont) {
-    m_face = static_cast<FT_Face>(hFont);
-    if (!m_face) m_face = m_default_face;
-    if (!m_face) return;
+    font_structure_t* font_struct = reinterpret_cast<font_structure_t*>(hFont);
+    load_font(*font_struct);
+}
+
+void test_container::load_font(font_structure_t font_struct) {
+    m_face = font_struct.font;
+    if (!font_struct.valid || !m_face) {
+        font_struct.valid = false;
+        if (m_default_font.valid)
+            m_face = m_default_font.font;
+        else {
+            m_face = 0;
+            return;
+        }
+    }
+    if (!m_face)
+        return;
     m_slot = m_face->glyph;
 }
 
 litehtml::uint_ptr test_container::create_font(const litehtml::tchar_t* faceName, int size, int weight, litehtml::font_style italic, unsigned int decoration, litehtml::font_metrics* fm) {
-    // std::cout << "create_font: " << faceName << ", size="<< size << ", weight="<< weight << ", style="<< italic << ", decoration="<< decoration << std::endl;
+    std::cout << "create_font: " << faceName << ", size="<< size << ", weight="<< weight << ", style="<< italic << ", decoration="<< decoration << std::endl;
 
     if (faceName) {
 
@@ -115,52 +159,86 @@ litehtml::uint_ptr test_container::create_font(const litehtml::tchar_t* faceName
         name.erase(std::remove(name.begin(), name.end(), ','), name.end());
         // std::cout << "   Parsed Name : " << name << std::endl;
 
-        std::string key = name;
-        std::string keyalt = name;
+        std::string mod = "";
+        std::string modalt = "-Regular";
         if (italic && weight>=600) {
-            key+="-BoldItalic";
-            keyalt+="-BoldOblique";
+            mod = "-BoldItalic";
+            modalt = "-BoldOblique";
         } else if (weight>=600) {
-            key+="-Bold";
-            keyalt+="-Heavy";
+            mod = "-Bold";
+            modalt = "-Heavy";
         } else if (italic) {
-            key+="-Italic";
-            keyalt+="-Oblique";
-        } else
-            keyalt+="-Regular";
+            mod = "-Italic";
+            modalt = "-Oblique";
+        }
 
-        /* If font already exists, retrieve it*/
-        if (m_fonts.count(key+std::to_string(decoration)+std::to_string(size)))
-            load_font(m_fonts[key+std::to_string(decoration)+std::to_string(size)]);
-        else {
-            bool isdefault = false;
-            if (FT_New_Face(m_library, (m_directory+"fonts/"+key+".ttf").c_str(), 0, &m_face)) {
-                // std::cout << "   Error loading: fonts/" << key << ".tff" << std::endl << "   Looking in system instead.." << std::endl;
-                if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+key+".ttf").c_str(), 0, &m_face)) {
-                    // std::cout << "   Not found. Trying alternative: fonts/" << keyalt << ".tff" << std::endl;
-                    if (FT_New_Face(m_library, (m_directory+"fonts/"+keyalt+".ttf").c_str(), 0, &m_face)) {
-                        // std::cout << "   Error loading: fonts/" << keyalt << ".tff" << std::endl << "   Looking in system instead.." << std::endl;
-                        if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+keyalt+".ttf").c_str(), 0, &m_face)) {
-                            std::cout << "   WARNING: " << key << ".tff (alt " << keyalt << ".tff)" << " could not be found." << std::endl;
-                            if (!m_default_face)
-                                return 0;
-                            load_font(m_default_face);
-                            isdefault = true;
+        bool isdefault = false;
+        if (m_fonts.count(name+mod+std::to_string(decoration)+std::to_string(size))) {
+            /* If font already exists, retrieve it */
+            load_font(m_fonts[name+mod+std::to_string(decoration)+std::to_string(size)]);
+            if (m_face) isdefault = true;
+            /* Note we never save fonts using modalt so no need to check when loading */
+        }
+
+        if (!isdefault) {
+            if (FT_New_Face(m_library, (m_directory+"fonts/"+name+mod+".ttf").c_str(), 0, &m_face)) {
+                // std::cout << "   Error loading: fonts/" << (name+mod) << ".tff" << std::endl << "   Looking in system instead.." << std::endl;
+                if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+mod+".ttf").c_str(), 0, &m_face)) {
+                    // std::cout << "   Not found. Trying alternative: fonts/" << (name+modalt) << ".tff" << std::endl;
+                    if (FT_New_Face(m_library, (m_directory+"fonts/"+name+modalt+".ttf").c_str(), 0, &m_face)) {
+                        // std::cout << "   Error loading: fonts/" << (name+modalt) << ".tff" << std::endl << "   Looking in system instead.." << std::endl;
+                        if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+modalt+".ttf").c_str(), 0, &m_face)) {
+                            std::cout << "   WARNING: " << (name+mod) << ".tff (alt " << (name+modalt) << ".tff)" << " could not be found." << std::endl;
+                            /* Try loading default font */
+                            name = get_default_font_name();
+                            if (m_fonts.count(name+mod+std::to_string(decoration)+std::to_string(size))) {
+                                load_font(m_fonts[name+mod+std::to_string(decoration)+std::to_string(size)]);
+                                if (m_face) isdefault = true;
+                            }
+
+                            if (!isdefault) {
+                                if (FT_New_Face(m_library, (m_directory+"fonts/"+name+mod+".ttf").c_str(), 0, &m_face)) {
+                                    // std::cout << "      Error loading: fonts/" << (name+mod) << ".tff" << std::endl << "   Looking in system instead.." << std::endl;
+                                    if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+mod+".ttf").c_str(), 0, &m_face)) {
+                                        // std::cout << "      Not found. Trying alternative: fonts/" << (name+modalt) << ".tff" << std::endl;
+                                        if (FT_New_Face(m_library, (m_directory+"fonts/"+name+modalt+".ttf").c_str(), 0, &m_face)) {
+                                            // std::cout << "      Error loading: fonts/" << (name+modalt) << ".tff" << std::endl << "   Looking in system instead.." << std::endl;
+                                            if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+modalt+".ttf").c_str(), 0, &m_face)) {
+                                                std::cout << "      WARNING: default_font [" << (name+mod) << ".tff (alt " << (name+modalt) << ".tff)]" << " could not be found." << std::endl;
+                                                /* If all else fails, try to see if we've loaded a font before and use that */
+                                                if (!m_default_font.valid)
+                                                    return 0;
+                                                /* Last option, will cause "Critical Fail" message (see below) if fails */
+                                                load_font(m_default_font);
+                                                isdefault = true;
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
             }
 
-            if (!isdefault) {
+            if (!isdefault && m_face) {
                 FT_Set_Char_Size(m_face, 0, size*16, 300, 300);
                 m_face->generic.data = reinterpret_cast<void*>(decoration);
 
                 /* Save the first valid font to be used if other fonts are invalid*/
-                if (!m_default_face) m_default_face = m_face;
+                if (!m_default_font.valid) {
+                    m_default_font.font = m_face;
+                    m_default_font.valid = true;
+                }
 
                 m_slot = m_face->glyph;
-                m_fonts[key+std::to_string(decoration)+std::to_string(size)] = m_face;
+                m_fonts[name+mod+std::to_string(decoration)+std::to_string(size)] = font_structure_t({m_face, true});
             }
+        }
+
+        if (!m_face) {
+            std::cout << "Critical Fail" << std::endl;
+            return 0;
         }
 
         /* set up matrix */
@@ -184,20 +262,22 @@ litehtml::uint_ptr test_container::create_font(const litehtml::tchar_t* faceName
 
         fm->x_height = m_slot->bitmap.rows;
 
-        // std::cout << "   height=" << fm->height << ", ascent=" << fm->ascent << ", descent=" << fm->descent << ", x_height=" << fm->x_height << std::endl;
+        std::cout << "      height=" << fm->height << ", ascent=" << fm->ascent << ", descent=" << fm->descent << ", x_height=" << fm->x_height << std::endl;
 
-        return reinterpret_cast<litehtml::uint_ptr>(m_face);
+        return reinterpret_cast<litehtml::uint_ptr>(&m_fonts[name+mod+std::to_string(decoration)+std::to_string(size)]);
     }
 
     return 0;
 }
 
-static int i = 0;
 void test_container::delete_font(litehtml::uint_ptr hFont) {
-    std::cout << "delete_font" << std::endl;
-    if (hFont)
-        FT_Done_Face(reinterpret_cast<FT_Face>(hFont));
-    m_delete_flag = true;
+    // std::cout << "delete_font" << std::endl;
+    // font_structure_t font_struct = *reinterpret_cast<font_structure_t*>(hFont);
+    // if (font_struct.valid && font_struct.font) {
+    //     FT_Done_Face(font_struct.font);
+    //     font_struct.valid = false;
+    //     font_struct.font = 0;
+    // }
 }
 
 int test_container::text_width(const litehtml::tchar_t* text, litehtml::uint_ptr hFont) {
@@ -426,7 +506,7 @@ void test_container::set_base_url(const litehtml::tchar_t* base_url) {
 }
 
 void test_container::link(const std::shared_ptr<litehtml::document>& doc, const litehtml::element::ptr& el) {
-    std::cout << "link" << std::endl;
+    std::cout << "link: rel=" << el->get_attr("rel") << ", type=" << el->get_attr("type") << ", href=" << el->get_attr("href") << std::endl;
 }
 
 void test_container::on_anchor_click(const litehtml::tchar_t* url, const litehtml::element::ptr& el) {
@@ -434,6 +514,10 @@ void test_container::on_anchor_click(const litehtml::tchar_t* url, const litehtm
     std::string filename = url;
     if (strcmp(filename.substr(filename.find_last_of(".") + 1).c_str(), "html") == 0) {
         m_new_page = filename;
+        m_new_page_alt = "";
+    } else if (filename != "") {
+        m_new_page = filename+".html";
+        m_new_page_alt = filename+"/index.html";
     }
 }
 

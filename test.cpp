@@ -13,6 +13,8 @@
 
 #include "test_container.h"
 
+/* TODO: After it works well, lets clean things up, make it neat. Look for optimizations, deal with warnings.. */
+
 /* BEWARE: It seems that these can change on reboot */
 #define MOUSE_MOVE_FILE "/dev/input/event7"
 #define MOUSE_CLICK_FILE "/dev/input/mouse0"
@@ -99,21 +101,55 @@ int main(int argc, char* argv[]) {
 
 			click_ie = handle_mouse(mcf, mmf, &x, &y, click_ie);
 			if(painter.check_new_page()) {
-				// std::cout << "createFromString" << std::endl;
-				std::ifstream t3((painter.get_directory()+painter.get_new_page()).c_str());
-				std::stringstream buffer3;
-				buffer3 << t3.rdbuf();
-				std::cout << buffer3.str() << std::endl;
+				std::string page = painter.get_directory()+painter.get_new_page();
+				// std::cout << "new_page: " << page << std::endl;
 
-				painter = test_container(prefix, &finfo, &vinfo, font_library);
-				doc = litehtml::document::createFromString(buffer3.str().c_str(), &painter, &context);
-				continue;
+				std::ifstream t3(page.c_str());
+				if (t3) {
+					std::stringstream buffer3;
+					buffer3 << t3.rdbuf();
+					// std::cout << buffer4.str() << std::endl;
+
+					/* Buggy when removing fonts by destructors, needs manual clean */
+					painter.clear_fonts();
+					std::cout << "createFromString: " << page << std::endl;
+					if (std::count(page.begin(), page.end(), '/') > 0)
+						page = page.substr(0, page.find_last_of('/'));
+					else page = "";
+					painter = test_container(page, &finfo, &vinfo, font_library);
+					doc = litehtml::document::createFromString(buffer3.str().c_str(), &painter, &context);
+					continue;
+				} else if (painter.check_new_page_alt()) {
+					page = painter.get_directory()+painter.get_new_page_alt();
+					// std::cout << "alt_page: " << page << std::endl;
+
+					/* TODO: Yeah this naming pattern is getting bad ... I'm not focused on such optimizations right now though */
+					std::ifstream t4(page.c_str());
+					if (t4) {
+						std::stringstream buffer4;
+						buffer4 << t4.rdbuf();
+						// std::cout << buffer4.str() << std::endl;
+
+						/* Buggy when removing fonts by destructors, needs manual clean */
+						painter.clear_fonts();
+						std::cout << "createFromString: " << page << std::endl;
+						if (std::count(page.begin(), page.end(), '/') > 0)
+							page = page.substr(0, page.find_last_of('/'));
+						else page = "";
+						painter = test_container(page, &finfo, &vinfo, font_library);
+						doc = litehtml::document::createFromString(buffer4.str().c_str(), &painter, &context);
+						continue;
+					}
+				}
 			}
 			done = update(doc, click_ie, x, y, &redraw, &is_clicked);
 		}
 
 		ioctl(tty_fd, KDSETMODE, KD_TEXT);
 		///////////////////////////////////////////////////////////
+
+		/* Buggy when removing fonts by destructors, needs manual clean */
+		painter.clear_fonts();
 	}
 
 	if (font_library) {

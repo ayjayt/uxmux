@@ -9,17 +9,22 @@
 
 class test_container : public litehtml::document_container {
 private:
-	std::unordered_map<std::string, litehtml::uint_ptr> m_fonts;
-	bool m_delete_flag;
+	struct font_structure {
+		FT_Face font;
+		bool valid;
+	};
+	typedef struct font_structure font_structure_t;
+	font_structure_t m_default_font;
 
-    image_loader m_image_loader;
+	std::unordered_map<std::string, font_structure_t> m_fonts;
 
 	FT_Library m_library;
 	FT_Face m_face;
-	FT_Face m_default_face;
 	FT_GlyphSlot m_slot;
 
-	std::string m_directory, m_new_page;
+    image_loader m_image_loader;
+
+	std::string m_directory, m_new_page, m_new_page_alt;
 	struct fb_fix_screeninfo* m_finfo;
 	struct fb_var_screeninfo* m_vinfo;
 
@@ -39,10 +44,14 @@ public:
 	void swap_buffer(litehtml::uint_ptr hdc);
 	void clear_screen();
 	void load_font(litehtml::uint_ptr hFont);
+	void load_font(font_structure_t font_struct);
+	void clear_fonts();
 
 	std::string get_new_page();
+	std::string get_new_page_alt();
 
 	bool check_new_page(){return m_new_page != "";}
+	bool check_new_page_alt(){return m_new_page_alt != "";}
 	uint32_t* get_back_buffer(){return m_back_buffer;}
 	std::string get_directory(){return m_directory;}
 
