@@ -1,23 +1,25 @@
-#include <iostream>
 #include <fstream>
-#include <stdio.h>
-#include <stdint.h>
 #include <unistd.h>
 #include <fcntl.h>
-#include <time.h>
 #include <linux/fb.h>
 #include <linux/kd.h>
 #include <linux/input.h>
 #include <sys/ioctl.h>
-#include <sys/select.h>
+#include <sys/mman.h>
 
+#include "litehtml.h"
 #include "uxmux_container.h"
+
+#include <ft2build.h>
+#include FT_FREETYPE_H
 
 /* TODO: After it works well, lets clean things up, make it neat. Look for optimizations, deal with warnings.. */
 
 /* BEWARE: It seems that these can change on reboot */
 #define MOUSE_MOVE_FILE "/dev/input/event7"
 #define MOUSE_CLICK_FILE "/dev/input/mouse0"
+
+#define TTY_FILE "/dev/tty0"
 
 void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, uxmux_container painter, struct fb_var_screeninfo vinfo, struct fb_fix_screeninfo finfo, litehtml::uint_ptr hdcMouse, int x, int y, unsigned char click_ie, bool redraw);
 bool update(litehtml::document::ptr doc, unsigned char click_ie, int x, int y, bool* redraw, bool* is_clicked);
@@ -28,20 +30,21 @@ int main(int argc, char* argv[]) {
 	FT_Library font_library = 0;
 
 	if (argc!=3) {
-		std::cout << "usage: " << argv[0] << " <html_file> <master_css>" << std::endl;
+		printf("usage: %s <html_file> <master_css>\n", argv[0]);
 	} else {
 		int mmf, mcf;
 		if ((mmf = open(MOUSE_MOVE_FILE, O_RDONLY))==-1) {
-			std::cout << "ERROR opening MOUSE_MOVE_FILE" << std::endl;
+			printf("ERROR opening MOUSE_MOVE_FILE\n");
 			mmf = 0;
+			mcf = 0;
 		} else if ((mcf = open(MOUSE_CLICK_FILE, O_RDONLY))==-1) {
-			std::cout << "ERROR opening MOUSE_CLICK_FILE" << std::endl;
+			printf("ERROR opening MOUSE_CLICK_FILE\n");
 			mmf = 0;
 			mcf = 0;
 		}
 
 		/* Read the given file and print its contents to the screen */
-		std::cout << "Reading file " << argv[1] << " as HTML:" << std::endl << std::endl;
+		printf("Reading file %s as HTML:\n\n", argv[1]);
 
 		std::string path = argv[1];
 		std::string prefix = "";
@@ -51,10 +54,10 @@ int main(int argc, char* argv[]) {
 		std::ifstream t(argv[1]);
 		std::stringstream buffer;
 		buffer << t.rdbuf();
-		std::cout << buffer.str() << std::endl;
+		printf("%s\n", buffer.str().c_str());
 
 		/* Load the master.css file */
-		std::cout << "Loading file " << argv[2] << " as Master CSS" << std::endl << std::endl;
+		printf("Loading file %s as Master CSS\n\n", argv[2]);
 
 		std::ifstream t2(argv[2]);
 		std::stringstream buffer2;
@@ -75,9 +78,9 @@ int main(int argc, char* argv[]) {
 
 		/* Start litehtml rendering
 		   See: https://github.com/litehtml/litehtml/wiki/How-to-use-litehtml */
-		// std::cout << "load_master_stylesheet" << std::endl;
+		// printf("load_master_stylesheet\n");
 		context.load_master_stylesheet(buffer2.str().c_str());
-		// std::cout << "createFromString" << std::endl;
+		// printf("createFromString\n");
 		litehtml::document::ptr doc;
 		doc = litehtml::document::createFromString(buffer.str().c_str(), &painter, &context);
 
@@ -86,13 +89,17 @@ int main(int argc, char* argv[]) {
 		unsigned char click_ie = 0;
 
 		/* Dirty fix for carryover click bug */
-		std::cout << "Right click screen to start." << std::endl;
+		printf("Right click screen to start.");
+		if (mcf)
+			printf(" (Then right click the screen to exit.)\n");
+		else
+			printf(" (Then press enter to exit.)\n");
 		unsigned char val = handle_mouse(mcf, mmf, &x, &y, 0);
 		while (!val&0x7)val=handle_mouse(mcf, mmf, &x, &y, 0);
 		while (val&0x2||val==0)val=handle_mouse(mcf, mmf, &x, &y, 0);
 
 		///////////////////////////////////////////////////////////
-		int tty_fd = open("/dev/tty0", O_RDWR);
+		int tty_fd = open(TTY_FILE, O_RDWR);
 		ioctl(tty_fd, KDSETMODE, KD_GRAPHICS);
 
 		/* Main program loop */
@@ -102,17 +109,17 @@ int main(int argc, char* argv[]) {
 			click_ie = handle_mouse(mcf, mmf, &x, &y, click_ie);
 			if(painter.check_new_page()) {
 				std::string page = painter.get_directory()+painter.get_new_page();
-				// std::cout << "new_page: " << page << std::endl;
+				// printf("new_page: %s\n", page.c_str());
 
 				std::ifstream t3(page.c_str());
 				if (t3) {
 					std::stringstream buffer3;
 					buffer3 << t3.rdbuf();
-					// std::cout << buffer4.str() << std::endl;
+					// printf("%s\n", buffer4.str().c_str());
 
 					/* Buggy when removing fonts by destructors, needs manual clean */
 					painter.clear_fonts();
-					std::cout << "createFromString: " << page << std::endl;
+					// printf("createFromString: %s\n", page.c_str());
 					if (std::count(page.begin(), page.end(), '/') > 0)
 						page = page.substr(0, page.find_last_of('/'));
 					else page = "";
@@ -121,18 +128,18 @@ int main(int argc, char* argv[]) {
 					continue;
 				} else if (painter.check_new_page_alt()) {
 					page = painter.get_directory()+painter.get_new_page_alt();
-					// std::cout << "alt_page: " << page << std::endl;
+					// printf("alt_page: %s\n", page.c_str());
 
 					/* TODO: Yeah this naming pattern is getting bad ... I'm not focused on such optimizations right now though */
 					std::ifstream t4(page.c_str());
 					if (t4) {
 						std::stringstream buffer4;
 						buffer4 << t4.rdbuf();
-						// std::cout << buffer4.str() << std::endl;
+						// printf("%s\n", buffer4.str().c_str());
 
 						/* Buggy when removing fonts by destructors, needs manual clean */
 						painter.clear_fonts();
-						std::cout << "createFromString: " << page << std::endl;
+						// printf("createFromString: %s\n", page.c_str());
 						if (std::count(page.begin(), page.end(), '/') > 0)
 							page = page.substr(0, page.find_last_of('/'));
 						else page = "";
@@ -153,11 +160,11 @@ int main(int argc, char* argv[]) {
 	}
 
 	if (font_library) {
-		std::cout << "clean up FontLibrary" << std::endl;
+		// printf("clean up FontLibrary\n");
 		FT_Done_FreeType(font_library);
 	}
 
-	std::cout << "Completed." << std::endl;
+	// printf("Completed.\n");
 	return 0;
 }
 
@@ -165,9 +172,9 @@ int main(int argc, char* argv[]) {
 void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, uxmux_container painter, struct fb_var_screeninfo vinfo, struct fb_fix_screeninfo finfo, litehtml::uint_ptr hdcMouse, int x, int y, unsigned char click_ie, bool redraw) {
 		if (redraw) {
 			painter.clear_screen();
-			// std::cout << "rendering.." << std::endl;
+			// printf("rendering..\n");
 			doc->render(vinfo.xres);
-			// std::cout << "drawing.." << std::endl;
+			// printf("drawing..\n");
 			doc->draw(painter.get_back_buffer(),0,0,0);
 		}
 
@@ -183,7 +190,7 @@ void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, uxmux_container
 		// tim.tv_sec = 2;
 		// tim.tv_nsec = 0;
 		// if (nanosleep(&tim, &tim2)<0)
-		// 	std::cout << "nanosleep failed!" << std::endl;
+		// 	printf("nanosleep failed!");
 
 		/* Hold screen until enter key is pressed*/
 		// while (std::cin.get() != '\n');
@@ -272,13 +279,13 @@ unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned ch
 
 	/* Update mouse click */
 	if (select(mcf + 1, &read_fds, &write_fds, &except_fds, &timeout) == 1) {
-		time_t timev;
-		time(&timev);
+		// time_t timev;
+		// time(&timev);
 		read(mcf, &click_ie, sizeof(click_ie));
 		// printf("click %d at pos (%d,%d) at time %ld\n", click_ie[0], x, y, timev);
 	} else {
 		/* timeout or error */
-		// std::cout << "click none" << std::endl;
+		// printf("click none\n");
 	}
 
 	/* Set timeout to 1.0 microseconds */

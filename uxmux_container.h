@@ -1,6 +1,9 @@
 #include <linux/fb.h>
+#include <stdint.h>
 #include <sys/mman.h>
 #include <unordered_map>
+#include <fstream>
+
 #include "litehtml.h"
 #include "image_loader.h"
 

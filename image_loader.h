@@ -1,6 +1,5 @@
 #include <linux/fb.h>
 #include <stdint.h>
-#include <stdio.h>
 #include <stdlib.h>
 
 /* libpng16 */

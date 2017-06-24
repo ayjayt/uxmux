@@ -1,13 +1,9 @@
 #include "uxmux_container.h"
 
-#include <iostream>
-#include <fstream>
-#include <math.h>
-
 /* See https://github.com/litehtml/litehtml/wiki/document_container */
 
 uxmux_container::uxmux_container(std::string prefix, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo, FT_Library library) {
-    std::cout << "ctor uxmux_container" << std::endl;
+    // printf("ctor uxmux_container\n");
 
     if (strcmp(prefix.c_str(),"")!=0)
         m_directory = prefix+"/";
@@ -31,14 +27,14 @@ uxmux_container::uxmux_container(std::string prefix, struct fb_fix_screeninfo* f
 }
 
 uxmux_container::~uxmux_container(void) {
-    // std::cout << "dtor ~uxmux_container" << std::endl;
+    // printf("dtor ~uxmux_container\n");
 }
 
 void uxmux_container::clear_fonts() {
     if (!m_fonts.empty()) {
         std::unordered_map<std::string, font_structure_t>::iterator it;
         for (it=m_fonts.begin(); it!=m_fonts.end(); ++it){
-            std::cout << "   delete_font: " << it->first << std::endl;
+            // printf("   delete_font: %s\n", it->first.c_str());
             if (it->second.valid && it->second.font) {
                 FT_Done_Face(it->second.font);
                 it->second.valid = false;
@@ -54,7 +50,7 @@ inline uint32_t uxmux_container::pixel_color(uint8_t r, uint8_t g, uint8_t b, st
 }
 
 std::string uxmux_container::get_new_page() {
-    // std::cout << "get_new_page" << std::endl;
+    // printf("get_new_page\n");
     if (check_new_page()) {
         std::string ret(m_new_page.c_str());
         m_new_page = "";
@@ -64,7 +60,7 @@ std::string uxmux_container::get_new_page() {
 }
 
 std::string uxmux_container::get_new_page_alt() {
-    // std::cout << "get_new_page_alt" << std::endl;
+    // printf("get_new_page_alt\n");
     if (check_new_page_alt()) {
         std::string ret(m_new_page_alt.c_str());
         m_new_page_alt = "";
@@ -93,7 +89,7 @@ void uxmux_container::swap_buffer(litehtml::uint_ptr src_hdc, litehtml::uint_ptr
 }
 
 void uxmux_container::draw_mouse(litehtml::uint_ptr hdc, int xpos, int ypos, unsigned char click) {
-    // std::cout << "draw_mouse, at (" << xpos << ", " << ypos << ")" << std::endl;
+    // printf("draw_mouse, at (%d, %d)\n", xpos, ypos);
     if (m_cursor) {
         draw_rect(hdc, xpos-1, ypos-4, 3, 9, litehtml::web_color(click&0x4?0xff:0, click&0x2?0xff:0, click&0x1?0xff:0));
         draw_rect(hdc, xpos-4, ypos-1, 9, 3, litehtml::web_color(click&0x4?0xff:0, click&0x2?0xff:0, click&0x1?0xff:0));
@@ -107,7 +103,7 @@ void uxmux_container::draw_rect(litehtml::uint_ptr hdc, const litehtml::position
 }
 
 void uxmux_container::draw_rect(litehtml::uint_ptr hdc, int xpos, int ypos, int width, int height, litehtml::web_color color) {
-    // std::cout << "   draw_rect, at (" << xpos << ", " << ypos << "), size (" << width << ", " << height << "), color (" << static_cast<int>(color.red) << ", " << static_cast<int>(color.green) << ", " << static_cast<int>(color.blue) << ")" << std::endl;
+    // printf("   draw_rect, at (%d, %d), size (%d, %d), color (%d, %d, %d)\n", xpos, ypos, width, height, static_cast<int>(color.red), static_cast<int>(color.green), static_cast<int>(color.blue));
 
     long x, y;
     for (x = xpos; x < xpos + width; x++) {
@@ -142,7 +138,7 @@ void uxmux_container::load_font(font_structure_t font_struct) {
 }
 
 litehtml::uint_ptr uxmux_container::create_font(const litehtml::tchar_t* faceName, int size, int weight, litehtml::font_style italic, unsigned int decoration, litehtml::font_metrics* fm) {
-    std::cout << "create_font: " << faceName << ", size="<< size << ", weight="<< weight << ", style="<< italic << ", decoration="<< decoration << std::endl;
+    // printf("create_font: %s, size=%d, weight=%d, style=%d, decoration=%d\n", faceName, size, weight, italic, decoration);
 
     if (faceName) {
 
@@ -157,7 +153,7 @@ litehtml::uint_ptr uxmux_container::create_font(const litehtml::tchar_t* faceNam
         }
         name.erase(std::remove(name.begin(), name.end(), '"'), name.end());
         name.erase(std::remove(name.begin(), name.end(), ','), name.end());
-        // std::cout << "   Parsed Name : " << name << std::endl;
+        // printf("   Parsed Name : %s\n", name.cstr());
 
         std::string mod = "";
         std::string modalt = "-Regular";
@@ -182,13 +178,13 @@ litehtml::uint_ptr uxmux_container::create_font(const litehtml::tchar_t* faceNam
 
         if (!isdefault) {
             if (FT_New_Face(m_library, (m_directory+"fonts/"+name+mod+".ttf").c_str(), 0, &m_face)) {
-                // std::cout << "   Error loading: fonts/" << (name+mod) << ".tff" << std::endl << "   Looking in system instead.." << std::endl;
+                // printf("   Error loading: fonts/%s.tff\n   Looking in system instead..\n", (name+mod).c_str());
                 if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+mod+".ttf").c_str(), 0, &m_face)) {
-                    // std::cout << "   Not found. Trying alternative: fonts/" << (name+modalt) << ".tff" << std::endl;
+                    // printf("   Not found. Trying alternative: fonts/%s.tff\n", (name+modalt).c_str());
                     if (FT_New_Face(m_library, (m_directory+"fonts/"+name+modalt+".ttf").c_str(), 0, &m_face)) {
-                        // std::cout << "   Error loading: fonts/" << (name+modalt) << ".tff" << std::endl << "   Looking in system instead.." << std::endl;
+                        // printf("   Error loading: fonts/%s.tff\n   Looking in system instead..\n", (name+modalt).c_str());
                         if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+modalt+".ttf").c_str(), 0, &m_face)) {
-                            std::cout << "   WARNING: " << (name+mod) << ".tff (alt " << (name+modalt) << ".tff)" << " could not be found." << std::endl;
+                            printf("   WARNING: %s.tff (alt %s.tff) could not be found.\n", (name+mod).c_str(), (name+modalt).c_str());
                             /* Try loading default font */
                             name = get_default_font_name();
                             if (m_fonts.count(name+mod+std::to_string(decoration)+std::to_string(size))) {
@@ -198,13 +194,13 @@ litehtml::uint_ptr uxmux_container::create_font(const litehtml::tchar_t* faceNam
 
                             if (!isdefault) {
                                 if (FT_New_Face(m_library, (m_directory+"fonts/"+name+mod+".ttf").c_str(), 0, &m_face)) {
-                                    // std::cout << "      Error loading: fonts/" << (name+mod) << ".tff" << std::endl << "   Looking in system instead.." << std::endl;
+                                    // printf("   Error loading: fonts/%s.tff\n   Looking in system instead..\n", (name+mod).c_str());
                                     if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+mod+".ttf").c_str(), 0, &m_face)) {
-                                        // std::cout << "      Not found. Trying alternative: fonts/" << (name+modalt) << ".tff" << std::endl;
+                                        // printf("   Not found. Trying alternative: fonts/%s.tff\n", (name+modalt).c_str());
                                         if (FT_New_Face(m_library, (m_directory+"fonts/"+name+modalt+".ttf").c_str(), 0, &m_face)) {
-                                            // std::cout << "      Error loading: fonts/" << (name+modalt) << ".tff" << std::endl << "   Looking in system instead.." << std::endl;
+                                            // printf("   Error loading: fonts/%s.tff\n   Looking in system instead..\n", (name+modalt).c_str());
                                             if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+modalt+".ttf").c_str(), 0, &m_face)) {
-                                                std::cout << "      WARNING: default_font [" << (name+mod) << ".tff (alt " << (name+modalt) << ".tff)]" << " could not be found." << std::endl;
+                                                printf("      WARNING: default_font [%s.tff (alt %s.tff)] could not be found.\n", (name+mod).c_str(), (name+modalt).c_str());
                                                 /* If all else fails, try to see if we've loaded a font before and use that */
                                                 if (!m_default_font.valid)
                                                     return 0;
@@ -237,7 +233,7 @@ litehtml::uint_ptr uxmux_container::create_font(const litehtml::tchar_t* faceNam
         }
 
         if (!m_face) {
-            std::cout << "Critical Fail" << std::endl;
+            printf("CRITICAL FAIL: while loading fonts\n");
             return 0;
         }
 
@@ -262,7 +258,7 @@ litehtml::uint_ptr uxmux_container::create_font(const litehtml::tchar_t* faceNam
 
         fm->x_height = m_slot->bitmap.rows;
 
-        std::cout << "      height=" << fm->height << ", ascent=" << fm->ascent << ", descent=" << fm->descent << ", x_height=" << fm->x_height << std::endl;
+        // printf("      height=%d, ascent=%d, descent=%d, x_height=%d\n", fm->height, fm->ascent, fm->descent, fm->x_height);
 
         return reinterpret_cast<litehtml::uint_ptr>(&m_fonts[name+mod+std::to_string(decoration)+std::to_string(size)]);
     }
@@ -271,7 +267,7 @@ litehtml::uint_ptr uxmux_container::create_font(const litehtml::tchar_t* faceNam
 }
 
 void uxmux_container::delete_font(litehtml::uint_ptr hFont) {
-    // std::cout << "delete_font" << std::endl;
+    // printf("delete_font\n");
     // font_structure_t font_struct = *reinterpret_cast<font_structure_t*>(hFont);
     // if (font_struct.valid && font_struct.font) {
     //     FT_Done_Face(font_struct.font);
@@ -281,7 +277,7 @@ void uxmux_container::delete_font(litehtml::uint_ptr hFont) {
 }
 
 int uxmux_container::text_width(const litehtml::tchar_t* text, litehtml::uint_ptr hFont) {
-    // std::cout << "text_width" << std::endl;
+    // printf("text_width\n");
 
     load_font(hFont);
     if (!m_face) return 0;
@@ -319,12 +315,12 @@ int uxmux_container::text_width(const litehtml::tchar_t* text, litehtml::uint_pt
 }
 
 void uxmux_container::draw_text(litehtml::uint_ptr hdc, const litehtml::tchar_t* text, litehtml::uint_ptr hFont, litehtml::web_color color, const litehtml::position& pos) {
-    // std::cout << "draw_text: " << text << ", at (" << pos.x << ", " << pos.y << "), size (" << pos.width << ", " << pos.height << "), color (" << static_cast<int>(color.red) << ", " << static_cast<int>(color.green) << ", " << static_cast<int>(color.blue) << ")" << std::endl;
+    // printf("draw_text: %s, at (%d, %d), size (%d, %d), color (%d, %d, %d)\n", text, pos.x, pos.y, pos.width, pos.height, static_cast<int>(color.red), static_cast<int>(color.green), static_cast<int>(color.blue));
 
     load_font(hFont);
     if (!m_face) return;
 
-    // std::cout << "   decoration: " << m_face->generic.data << std::endl;
+    // printf("   decoration: %d\n", m_face->generic.data);
 
     int xpos = pos.x;
     int ypos = pos.y;
@@ -354,12 +350,12 @@ void uxmux_container::draw_text(litehtml::uint_ptr hdc, const litehtml::tchar_t*
         if (FT_Load_Char(m_face, text[n], FT_LOAD_RENDER))
             continue;  /* ignore errors */
 
-        // std::cout << "  bitmap_left=" << m_slot->bitmap_left << ",  bitmap_top" << m_slot->bitmap_top << ", bitmap.width" << m_slot->bitmap.width << ", bitmap.rows" << m_slot->bitmap.rows << std::endl;
+        // printf("  bitmap_left=%d,  bitmap_top=%d, bitmap.width=%d, bitmap.rows=%d\n", m_slot->bitmap_left, m_slot->bitmap_top, m_slot->bitmap.width, m_slot->bitmap.rows);
 
         /* now, draw to our target surface (convert position) */
         int i, j, p, q;
         int targety = ypos + pos.height - m_slot->bitmap_top + ypos + m_face->size->metrics.descender/64;
-        // std::cout << "line height: " << m_face->size->metrics.height/64 << std::endl;
+        // printf("line height: %d\n", m_face->size->metrics.height/64);
         for (i = m_slot->bitmap_left, p = 0; i < m_slot->bitmap_left+m_slot->bitmap.width; i++, p++) {
             for (j = targety, q = 0; j < targety+m_slot->bitmap.rows; j++, q++) {
                 if (i < 0 || j < 0 || i >= m_vinfo->xres || j >= m_vinfo->yres)
@@ -409,17 +405,17 @@ void uxmux_container::draw_text(litehtml::uint_ptr hdc, const litehtml::tchar_t*
 }
 
 int uxmux_container::pt_to_px(int pt) {
-    // std::cout << "pt_to_px: " << pt << std::endl;
+    // printf("pt_to_px: %d\n", pt);
     return pt;
 }
 
 int uxmux_container::get_default_font_size() const{
-    // std::cout << "get_default_font_size" << std::endl;
+    // printf("get_default_font_size\n");
     return 16;
 }
 
 const litehtml::tchar_t* uxmux_container::get_default_font_name() const{
-    // std::cout << "get_default_font_name" << std::endl;
+    // printf("get_default_font_name\n");
     return "DejaVuSans";
 }
 
@@ -451,21 +447,21 @@ const litehtml::tchar_t* uxmux_container::get_default_font_name() const{
         };
 */
 void uxmux_container::draw_list_marker(litehtml::uint_ptr hdc, const litehtml::list_marker& marker) {
-    // std::cout << "draw_list_marker " << marker.image << " at " << marker.pos.x << ", " << marker.pos.y << std::endl;
+    // printf("draw_list_marker %s at (%d, %d)\n", marker.image.c_str(), marker.pos.x, marker.pos.y);
     draw_rect(hdc, marker.pos.x, marker.pos.y, marker.pos.width, marker.pos.height, marker.color);
 }
 
 void uxmux_container::load_image(const litehtml::tchar_t* src, const litehtml::tchar_t* baseurl, bool redraw_on_ready) {
-    // std::cout << "load_image: " << src << std::endl;
+    // printf("load_image: %s\n", src);
 }
 
 void uxmux_container::get_image_size(const litehtml::tchar_t* src, const litehtml::tchar_t* baseurl, litehtml::size& sz) {
-    // std::cout << "get_image_size: " << src << std::endl;
+    // printf("get_image_size: %s\n", src);
     m_image_loader.image_size((m_directory+src).c_str(), &sz.width, &sz.height);
 }
 
 void uxmux_container::draw_background(litehtml::uint_ptr hdc, const litehtml::background_paint& bg) {
-    // std::cout << "draw_background: " << bg.image << " at " << bg.position_x << ", " << bg.position_y << std::endl;
+    // printf("draw_background: %s at (%d, %d)\n", bg.image.c_str(), bg.position_x, bg.position_y);
     if (strcmp(bg.image.c_str(), "")!=0)
         if (!m_image_loader.load_image((m_directory+bg.image).c_str()))
             if (!m_image_loader.copy_to_framebuffer(hdc, m_finfo, m_vinfo, bg.position_x, bg.position_y))
@@ -490,7 +486,7 @@ void uxmux_container::draw_background(litehtml::uint_ptr hdc, const litehtml::ba
         };
 */
 void uxmux_container::draw_borders(litehtml::uint_ptr hdc, const litehtml::borders& borders, const litehtml::position& draw_pos, bool root) {
-    // std::cout << "draw_borders" << std::endl;
+    // printf("draw_borders\n");
     draw_rect(hdc, draw_pos.x, draw_pos.y, draw_pos.width-borders.right.width, borders.top.width, borders.top.color);
     draw_rect(hdc, draw_pos.x, draw_pos.y+draw_pos.height-borders.bottom.width, draw_pos.width-borders.right.width, borders.bottom.width, borders.bottom.color);
     draw_rect(hdc, draw_pos.x, draw_pos.y, borders.left.width, draw_pos.height, borders.left.color);
@@ -498,19 +494,19 @@ void uxmux_container::draw_borders(litehtml::uint_ptr hdc, const litehtml::borde
 }
 
 void uxmux_container::set_caption(const litehtml::tchar_t* caption) {
-    // std::cout << "set_caption: " << caption << std::endl;
+    // printf("set_caption: %s\n", caption);
 }
 
 void uxmux_container::set_base_url(const litehtml::tchar_t* base_url) {
-    // std::cout << "set_base_url" << std::endl;
+    // printf("set_base_url\n");
 }
 
 void uxmux_container::link(const std::shared_ptr<litehtml::document>& doc, const litehtml::element::ptr& el) {
-    std::cout << "link: rel=" << el->get_attr("rel") << ", type=" << el->get_attr("type") << ", href=" << el->get_attr("href") << std::endl;
+    printf("link: rel=%s, type=%s, href=%s\n", el->get_attr("rel"), el->get_attr("type"), el->get_attr("href"));
 }
 
 void uxmux_container::on_anchor_click(const litehtml::tchar_t* url, const litehtml::element::ptr& el) {
-    std::cout << "on_anchor_click: " << url << std::endl;
+    // printf("on_anchor_click: %s\n", url);
     std::string filename = url;
     if (strcmp(filename.substr(filename.find_last_of(".") + 1).c_str(), "html") == 0) {
         m_new_page = filename;
@@ -522,7 +518,7 @@ void uxmux_container::on_anchor_click(const litehtml::tchar_t* url, const liteht
 }
 
 void uxmux_container::set_cursor(const litehtml::tchar_t* cursor) {
-    // std::cout << "set_cursor: " << cursor << std::endl;
+    // printf("set_cursor: %s\n", cursor);
     if (strcmp(cursor, "auto") != 0)
         m_cursor = true;
     else
@@ -530,32 +526,32 @@ void uxmux_container::set_cursor(const litehtml::tchar_t* cursor) {
 }
 
 void uxmux_container::transform_text(litehtml::tstring& text, litehtml::text_transform tt) {
-    std::cout << "transform_text: " << text << std::endl;
+    // printf("transform_text: %s\n", text.c_str());
 }
 
 void uxmux_container::import_css(litehtml::tstring& text, const litehtml::tstring& url, litehtml::tstring& baseurl) {
-    // std::cout << "import_css: base=" << baseurl << ", url=" << url << std::endl;
+    // printf("import_css: base=%s, url=%s\n", baseurl.c_str(), url.c_str());
 
     std::ifstream t(m_directory+url);
-    // std::cout << "    " << m_directory << ", url=" << url << std::endl;
+    // printf("    %s, url=%s\n", m_directory.c_str(), url.c_str());
     std::stringstream buffer;
     buffer << t.rdbuf();
 
-    // std::cout << std::endl << buffer.str() << std::endl << std::endl;
+    // printf("\n%s\n\n", buffer.str().c_str());
 
     text = buffer.str();
 }
 
 void uxmux_container::set_clip(const litehtml::position& pos, const litehtml::border_radiuses& bdr_radius, bool valid_x, bool valid_y) {
-    // std::cout << "set_clip" << std::endl;
+    // printf("set_clip\n");
 }
 
 void uxmux_container::del_clip() {
-    // std::cout << "del_clip" << std::endl;
+    // printf("del_clip\n");
 }
 
 void uxmux_container::get_client_rect(litehtml::position& client) const{
-    // std::cout << "get_client_rect (" << m_vinfo->xres << ", " << m_vinfo->yres << ")" << std::endl;
+    // printf("get_client_rect (%d, %d)\n", m_vinfo->xres, m_vinfo->yres);
     client.x = 0;
     client.y = 0;
     client.width = m_vinfo->xres;
@@ -563,13 +559,13 @@ void uxmux_container::get_client_rect(litehtml::position& client) const{
 }
 
 std::shared_ptr<litehtml::element> uxmux_container::create_element(const litehtml::tchar_t* tag_name, const litehtml::string_map& attributes, const std::shared_ptr<litehtml::document>& doc) {
-    // std::cout << "create_element: " << tag_name << std::endl;
+    // printf("create_element: %s\n", tag_name);
     litehtml::element element(doc);
     element.set_tagName(tag_name);
     if (!attributes.empty()) {
         std::map<litehtml::tstring,litehtml::tstring>::const_iterator it;
         for (it=attributes.begin(); it!=attributes.end(); ++it){
-            // std::cout << "   set_attr: " << it->first << "=" << it->second << std::endl;
+            // printf("   set_attr: %s=%s\n", it->first.c_str(), it->second.c_str());
             element.set_attr(it->first.c_str(), it->second.c_str());
         }
     }
@@ -577,7 +573,7 @@ std::shared_ptr<litehtml::element> uxmux_container::create_element(const litehtm
 }
 
 void uxmux_container::get_media_features(litehtml::media_features& media) const{
-    // std::cout << "get_media_features" << std::endl;
+    // printf("get_media_features\n");
     litehtml::position client;
     get_client_rect(client);
     media.type = litehtml::media_type_screen;
@@ -592,7 +588,7 @@ void uxmux_container::get_media_features(litehtml::media_features& media) const{
 }
 
 void uxmux_container::get_language(litehtml::tstring& language, litehtml::tstring& culture) const{
-    // std::cout << "get_language" << std::endl;
+    // printf("get_language\n");
     language = _t("en");
     culture = _t("");
 }

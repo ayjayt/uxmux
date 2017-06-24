@@ -1,8 +1,7 @@
 # include "image_loader.h"
-#include <iostream>
 
 image_loader::image_loader() {
-    std::cout << "ctor image_loader" << std::endl;
+    // printf("ctor image_loader\n");
     m_file_type = none;
     m_png_ptr = 0;
     m_info_ptr = 0;
@@ -10,7 +9,7 @@ image_loader::image_loader() {
 }
 
 image_loader::~image_loader() {
-    // std::cout << "dtor ~image_loader" << std::endl;
+    // printf("dtor ~image_loader\n");
     destroy();
 }
 
@@ -123,7 +122,7 @@ int image_loader::load_png(const char* file_name) {
         return(FH_ERROR_FORMAT);
     }
 
-    // std::cout << "   width: " << static_cast<int>(m_width) << ", height: " << static_cast<int>(m_height) << ", color_type: " << static_cast<int>(m_color_type) << ", bit_depth: " << static_cast<int>(m_bit_depth) << std::endl;
+    // printf("   width: %d, height: %d, color_type: %d, bit_depth: %d\n", static_cast<int>(m_width), static_cast<int>(m_height), static_cast<int>(m_color_type), static_cast<int>(m_bit_depth));
 
     /* See: http://www.vias.org/pngguide/chapter13_08.html */
 
