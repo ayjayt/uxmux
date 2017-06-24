@@ -13,10 +13,8 @@ libpng version 1.6.28 <br/>
 1. Download litehtml and place folder into "./lib/" directory
 2. Compile litehtml from "./lib/litehtml/" using `cmake .` then `make`
 3. Compile project from "." using `make`
-4. Run the compiled program from "./build" using `./test <html_file> <master_css>`
+4. Run the compiled program from "./build" using `./uxmux <html_file> <master_css>`
 (Right click the screen to exit the program.)
-
-TODO: finish test_container.cpp (a litehtml::document_container)
 
 ### Oliver:
 

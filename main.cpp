@@ -11,7 +11,7 @@
 #include <sys/ioctl.h>
 #include <sys/select.h>
 
-#include "test_container.h"
+#include "uxmux_container.h"
 
 /* TODO: After it works well, lets clean things up, make it neat. Look for optimizations, deal with warnings.. */
 
@@ -19,7 +19,7 @@
 #define MOUSE_MOVE_FILE "/dev/input/event7"
 #define MOUSE_CLICK_FILE "/dev/input/mouse0"
 
-void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, test_container painter, struct fb_var_screeninfo vinfo, struct fb_fix_screeninfo finfo, litehtml::uint_ptr hdcMouse, int x, int y, unsigned char click_ie, bool redraw);
+void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, uxmux_container painter, struct fb_var_screeninfo vinfo, struct fb_fix_screeninfo finfo, litehtml::uint_ptr hdcMouse, int x, int y, unsigned char click_ie, bool redraw);
 bool update(litehtml::document::ptr doc, unsigned char click_ie, int x, int y, bool* redraw, bool* is_clicked);
 litehtml::uint_ptr get_drawable(struct fb_fix_screeninfo *_finfo, struct fb_var_screeninfo *_vinfo);
 unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned char last_click);
@@ -70,7 +70,7 @@ int main(int argc, char* argv[]) {
 		/* Setup Font Library */
 		FT_Init_FreeType(&font_library);
 
-		test_container painter(prefix, &finfo, &vinfo, font_library);
+		uxmux_container painter(prefix, &finfo, &vinfo, font_library);
 		litehtml::context context;
 
 		/* Start litehtml rendering
@@ -116,7 +116,7 @@ int main(int argc, char* argv[]) {
 					if (std::count(page.begin(), page.end(), '/') > 0)
 						page = page.substr(0, page.find_last_of('/'));
 					else page = "";
-					painter = test_container(page, &finfo, &vinfo, font_library);
+					painter = uxmux_container(page, &finfo, &vinfo, font_library);
 					doc = litehtml::document::createFromString(buffer3.str().c_str(), &painter, &context);
 					continue;
 				} else if (painter.check_new_page_alt()) {
@@ -136,7 +136,7 @@ int main(int argc, char* argv[]) {
 						if (std::count(page.begin(), page.end(), '/') > 0)
 							page = page.substr(0, page.find_last_of('/'));
 						else page = "";
-						painter = test_container(page, &finfo, &vinfo, font_library);
+						painter = uxmux_container(page, &finfo, &vinfo, font_library);
 						doc = litehtml::document::createFromString(buffer4.str().c_str(), &painter, &context);
 						continue;
 					}
@@ -162,7 +162,7 @@ int main(int argc, char* argv[]) {
 }
 
 /* Render and draw to the screen*/
-void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, test_container painter, struct fb_var_screeninfo vinfo, struct fb_fix_screeninfo finfo, litehtml::uint_ptr hdcMouse, int x, int y, unsigned char click_ie, bool redraw) {
+void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, uxmux_container painter, struct fb_var_screeninfo vinfo, struct fb_fix_screeninfo finfo, litehtml::uint_ptr hdcMouse, int x, int y, unsigned char click_ie, bool redraw) {
 		if (redraw) {
 			painter.clear_screen();
 			// std::cout << "rendering.." << std::endl;

@@ -7,7 +7,7 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
-class test_container : public litehtml::document_container {
+class uxmux_container : public litehtml::document_container {
 private:
 	struct font_structure {
 		FT_Face font;
@@ -32,9 +32,9 @@ private:
 	uint32_t* m_back_buffer;
 
 public:
-	// test_container(void);
-	test_container(std::string prefix, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo, FT_Library library);
-	~test_container(void);
+	// uxmux_container(void);
+	uxmux_container(std::string prefix, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo, FT_Library library);
+	~uxmux_container(void);
 
 	inline uint32_t pixel_color(uint8_t r, uint8_t g, uint8_t b, struct fb_var_screeninfo *vinfo);
 	void draw_rect(litehtml::uint_ptr hdc, const litehtml::position& rect, litehtml::web_color color);
