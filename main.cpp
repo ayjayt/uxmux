@@ -19,6 +19,7 @@
 #define MOUSE_MOVE_FILE "/dev/input/event7"
 #define MOUSE_CLICK_FILE "/dev/input/mouse0"
 
+#define FRAMEBUFFER_FILE "/dev/fb0"
 #define TTY_FILE "/dev/tty0"
 
 void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, uxmux_container painter, struct fb_var_screeninfo vinfo, struct fb_fix_screeninfo finfo, litehtml::uint_ptr hdcMouse, int x, int y, unsigned char click_ie, bool redraw);
@@ -89,14 +90,20 @@ int main(int argc, char* argv[]) {
 		unsigned char click_ie = 0;
 
 		/* Dirty fix for carryover click bug */
-		printf("Right click screen to start.");
-		if (mcf)
-			printf(" (Then right click the screen to exit.)\n");
-		else
-			printf(" (Then press enter to exit.)\n");
-		unsigned char val = handle_mouse(mcf, mmf, &x, &y, 0);
-		while (!val&0x7)val=handle_mouse(mcf, mmf, &x, &y, 0);
-		while (val&0x2||val==0)val=handle_mouse(mcf, mmf, &x, &y, 0);
+		if (mcf&&mmf) {
+			printf("Right click screen to start. (Then again to exit.)\n");
+			unsigned char val = handle_mouse(mcf, mmf, &x, &y, 0);
+			while (!val&0x7)val=handle_mouse(mcf, mmf, &x, &y, 0);
+			while (val&0x2||val==0)val=handle_mouse(mcf, mmf, &x, &y, 0);
+		} else {
+			printf("Press enter to start. (Then again to exit.)\n");
+			while (1) {
+				int c = getchar();
+				if (isspace(c) || c == EOF)
+					break;
+			}
+			click_ie = 0x10;
+		}
 
 		///////////////////////////////////////////////////////////
 		int tty_fd = open(TTY_FILE, O_RDWR);
@@ -164,7 +171,7 @@ int main(int argc, char* argv[]) {
 		FT_Done_FreeType(font_library);
 	}
 
-	// printf("Completed.\n");
+	printf("Completed.\n");
 	return 0;
 }
 
@@ -193,11 +200,19 @@ void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, uxmux_container
 		// 	printf("nanosleep failed!");
 
 		/* Hold screen until enter key is pressed*/
-		// while (std::cin.get() != '\n');
+		if (click_ie&0x10) {
+			while (1) {
+				int c = getchar();
+				if (isspace(c) || c == EOF)
+					break;
+			}
+		}
 }
 
 /* Returns true when ready to stop program */
 bool update(litehtml::document::ptr doc, unsigned char click_ie, int x, int y, bool* redraw, bool* is_clicked) {
+	if (click_ie&0x10) return true;
+
 	litehtml::position::vector redraw_box;
 	*redraw = false;
 	*redraw |= doc->on_mouse_over(x, y, /*client_x*/ x, /*client_y*/ y, redraw_box);
@@ -217,7 +232,7 @@ litehtml::uint_ptr get_drawable(struct fb_fix_screeninfo *_finfo, struct fb_var_
 	struct fb_fix_screeninfo finfo;
 	struct fb_var_screeninfo vinfo;
 
-	int fb_fd = open("/dev/fb0", O_RDWR);
+	int fb_fd = open(FRAMEBUFFER_FILE, O_RDWR);
 	ioctl(fb_fd, FBIOGET_FSCREENINFO, &finfo);
 	ioctl(fb_fd, FBIOGET_VSCREENINFO, &vinfo);
 	vinfo.grayscale = 0;
@@ -246,6 +261,8 @@ litehtml::uint_ptr get_drawable(struct fb_fix_screeninfo *_finfo, struct fb_var_
 		value -> val
 */
 unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned char last_click) {
+	if (!mcf || !mmf) return 0x10;
+
 	fd_set read_fds, write_fds, except_fds;
 	struct timeval timeout;
 	struct input_event move_ie;
@@ -350,5 +367,5 @@ unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned ch
 	y = static_cast<double>(y-MY_MIN)/(MY_MAX-MY_MIN)*TARGET_Y;
 	if (y>7) *y_ret = y;
 
-	return click_ie[0];
+	return click_ie[0]&(~0x10);
 }
