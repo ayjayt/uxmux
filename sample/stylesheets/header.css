@@ -1,0 +1,166 @@
+.caret {
+    position: relative;
+    top: -10;
+    display: inline-block;
+    width: 0;
+    height: 0;
+    margin-left: 2px;
+    vertical-align: middle;
+    border-top: 4px dashed;
+    border-right: 4px solid transparent;
+    border-left: 4px solid transparent;
+    border-top-color: #0270ff;
+    border-right-color: #0270ff;
+    border-left-color: #0270ff;
+}
+
+div#hmenu {
+    /*font-size: large;*/
+    margin: 0;
+    padding: 0;
+    background: #00afee;
+    width: 100%;
+    text-align: center;
+}
+
+div#hmenu ul {
+    list-style-type: none;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+    background-color: #00afee;
+    position: absolute;
+    top: 0;
+    width: 100%;
+}
+
+div#hmenu ul li {
+    height: 30;
+    float: left;
+}
+
+div#hmenu ul li ul {
+    top: 30;
+    display: none;
+    position: absolute;
+    width: inherit;
+    height: default;
+}
+
+div#hmenu ul li#toplevel:hover {
+    height: 90;
+}
+
+div#hmenu ul li:hover ul {
+    display: block;
+    height: default;
+}
+
+div#hmenu ul li:hover li {
+    float: none;
+    height: default;
+}
+
+div#hmenu ul li:hover a:link{
+    margin: 0;
+    padding: .3em 1em .3em 1em;
+    text-decoration: none;
+    font-weight: bold;
+    color: #0270ff;
+}
+
+div#hmenu ul li:hover a:visited{
+    margin: 0;
+    padding: .3em 1em .3em 1em;
+    text-decoration: none;
+    font-weight: bold;
+    color: #0270ff;
+}
+
+div#hmenu ul li:hover a:active{
+    margin: 0;
+    padding: .3em 1em .3em 1em;
+    text-decoration: none;
+    font-weight: bold;
+    color: #fff;
+}
+
+div#hmenu ul li:hover a:active{
+    border-right-color: #fff;
+    border-left-color: #fff;
+}
+
+div#hmenu ul li:hover a:hover{
+    margin: 0;
+    padding: .3em 1em .3em 1em;
+    text-decoration: none;
+    font-weight: bold;
+    color: #fff;
+    background-color: #024fdf;
+}
+
+div#hmenu ul li:hover a:hover .caret{
+    border-top-color: #fff;
+    border-right-color: #fff;
+    border-left-color: #fff;
+}
+
+div#hmenu ul li#right{
+    float: right;
+}
+
+div#hmenu ul a:link{
+    display: block;
+    text-align: center;
+    margin: 0;
+    padding: .3em 1em .3em 1em;
+    text-decoration: none;
+    font-weight: bold;
+    color: #0270ff;
+}
+
+div#hmenu ul a:visited{
+    margin: 0;
+    padding: .3em 1em .3em 1em;
+    text-decoration: none;
+    font-weight: bold;
+    color: #0270ff;
+}
+
+div#hmenu ul a:active{
+    margin: 0;
+    padding: .3em 1em .3em 1em;
+    text-decoration: none;
+    font-weight: bold;
+    color: #fff;
+}
+
+div#hmenu ul a:hover{
+    margin: 0;
+    padding: .3em 1em .3em 1em;
+    text-decoration: none;
+    font-weight: bold;
+    color: #fff;
+    height: 20;
+    background-color: #024fdf;
+}
+
+div#hmenu ul a#active{
+    margin: 0;
+    padding: .3em 1em .3em 1em;
+    text-decoration: none;
+    font-weight: bold;
+    color: #fff;
+}
+
+td {
+    border-width: 0;
+}
+
+td#title {
+    color: #00afee;
+    margin-left: 40;
+    text-align: right;
+    font-family: DejaVuSansCondensed;
+    font-size: 16px;
+}
