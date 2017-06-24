@@ -13,15 +13,18 @@
 
 #include "test_container.h"
 
+/* BEWARE: It seems that these can change on reboot */
 #define MOUSE_MOVE_FILE "/dev/input/event7"
 #define MOUSE_CLICK_FILE "/dev/input/mouse0"
 
-void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, test_container painter, struct fb_var_screeninfo vinfo);
-bool update(litehtml::document::ptr doc, unsigned char click_ie, int x, int y, bool* redraw);
+void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, test_container painter, struct fb_var_screeninfo vinfo, struct fb_fix_screeninfo finfo, litehtml::uint_ptr hdcMouse, int x, int y, unsigned char click_ie, bool redraw);
+bool update(litehtml::document::ptr doc, unsigned char click_ie, int x, int y, bool* redraw, bool* is_clicked);
 litehtml::uint_ptr get_drawable(struct fb_fix_screeninfo *_finfo, struct fb_var_screeninfo *_vinfo);
-unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret);
+unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned char last_click);
 
 int main(int argc, char* argv[]) {
+	FT_Library font_library = 0;
+
 	if (argc!=3) {
 		std::cout << "usage: " << argv[0] << " <html_file> <master_css>" << std::endl;
 	} else {
@@ -59,49 +62,85 @@ int main(int argc, char* argv[]) {
 		struct fb_fix_screeninfo finfo;
 		struct fb_var_screeninfo vinfo;
 		litehtml::uint_ptr hdc = get_drawable(&finfo, &vinfo);
+		/* Separate draw layer for mouse */
+		litehtml::uint_ptr hdcMouse = mmap(0, vinfo.yres_virtual * finfo.line_length, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, off_t(0));
 
-		test_container painter(prefix, &finfo, &vinfo);
+		/* Setup Font Library */
+		FT_Init_FreeType(&font_library);
+
+		test_container painter(prefix, &finfo, &vinfo, font_library);
 		litehtml::context context;
 
 		/* Start litehtml rendering
 		   See: https://github.com/litehtml/litehtml/wiki/How-to-use-litehtml */
-		std::cout << "load_master_stylesheet" << std::endl;
+		// std::cout << "load_master_stylesheet" << std::endl;
 		context.load_master_stylesheet(buffer2.str().c_str());
-		std::cout << "createFromString" << std::endl;
+		// std::cout << "createFromString" << std::endl;
 		litehtml::document::ptr doc;
 		doc = litehtml::document::createFromString(buffer.str().c_str(), &painter, &context);
 
-		bool done = false, redraw = true;
+		bool done = false, redraw = true, is_clicked = false;
 		int x=-1, y=-1;
-		unsigned char click_ie;
+		unsigned char click_ie = 0;
 
+		/* Dirty fix for carryover click bug */
+		std::cout << "Right click screen to start." << std::endl;
+		unsigned char val = handle_mouse(mcf, mmf, &x, &y, 0);
+		while (!val&0x7)val=handle_mouse(mcf, mmf, &x, &y, 0);
+		while (val&0x2||val==0)val=handle_mouse(mcf, mmf, &x, &y, 0);
+
+		///////////////////////////////////////////////////////////
 		int tty_fd = open("/dev/tty0", O_RDWR);
 		ioctl(tty_fd, KDSETMODE, KD_GRAPHICS);
 
 		/* Main program loop */
 		while (!done) {
-			if (redraw)
-				render(hdc, doc, painter, vinfo);
+			render(hdc, doc, painter, vinfo, finfo, hdcMouse, x, y, click_ie, redraw);
 
-			click_ie = handle_mouse(mcf, mmf, &x, &y);
-			done = update(doc, click_ie, x, y, &redraw);
+			click_ie = handle_mouse(mcf, mmf, &x, &y, click_ie);
+			if(painter.check_new_page()) {
+				// std::cout << "createFromString" << std::endl;
+				std::ifstream t3((painter.get_directory()+painter.get_new_page()).c_str());
+				std::stringstream buffer3;
+				buffer3 << t3.rdbuf();
+				std::cout << buffer3.str() << std::endl;
+
+				painter = test_container(prefix, &finfo, &vinfo, font_library);
+				doc = litehtml::document::createFromString(buffer3.str().c_str(), &painter, &context);
+				continue;
+			}
+			done = update(doc, click_ie, x, y, &redraw, &is_clicked);
 		}
 
 		ioctl(tty_fd, KDSETMODE, KD_TEXT);
-		std::cout << "Completed." << std::endl;
+		///////////////////////////////////////////////////////////
 	}
 
+	if (font_library) {
+		std::cout << "clean up FontLibrary" << std::endl;
+		FT_Done_FreeType(font_library);
+	}
+
+	std::cout << "Completed." << std::endl;
 	return 0;
 }
 
 /* Render and draw to the screen*/
-void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, test_container painter, struct fb_var_screeninfo vinfo) {
-		std::cout << "rendering.." << std::endl;
-		doc->render(vinfo.xres);
-		std::cout << "drawing.." << std::endl;
-		doc->draw(painter.m_back_buffer,0,0,0);
+void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, test_container painter, struct fb_var_screeninfo vinfo, struct fb_fix_screeninfo finfo, litehtml::uint_ptr hdcMouse, int x, int y, unsigned char click_ie, bool redraw) {
+		if (redraw) {
+			painter.clear_screen();
+			// std::cout << "rendering.." << std::endl;
+			doc->render(vinfo.xres);
+			// std::cout << "drawing.." << std::endl;
+			doc->draw(painter.get_back_buffer(),0,0,0);
+		}
 
-		painter.swap_buffer(hdc);
+		/* Render mouse on separate layer */
+		painter.swap_buffer(hdcMouse);
+		painter.draw_mouse(hdcMouse, x, y, click_ie);
+
+		/* Copy buffer layer to screen layer */
+		painter.swap_buffer(hdcMouse, hdc, &vinfo, &finfo);
 
 		/* Hold the rendered screen for 2 seconds*/
 		// struct timespec tim, tim2;
@@ -115,12 +154,17 @@ void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, test_container 
 }
 
 /* Returns true when ready to stop program */
-bool update(litehtml::document::ptr doc, unsigned char click_ie, int x, int y, bool* redraw) {
+bool update(litehtml::document::ptr doc, unsigned char click_ie, int x, int y, bool* redraw, bool* is_clicked) {
 	litehtml::position::vector redraw_box;
 	*redraw = false;
 	*redraw |= doc->on_mouse_over(x, y, /*client_x*/ x, /*client_y*/ y, redraw_box);
-	if (click_ie&0x1) *redraw |= doc->on_lbutton_down(x, y, /*client_x*/ x, /*client_y*/ y, redraw_box);
-	// *redraw |= doc->on_lbutton_up(x, y, /*client_x*/ x, /*client_y*/ y, redraw_box);
+	if (click_ie&0x1) {
+		*is_clicked=true;
+		*redraw |= doc->on_lbutton_down(x, y, /*client_x*/ x, /*client_y*/ y, redraw_box);
+	} else if (*is_clicked) {
+		*is_clicked = false;
+		*redraw |= doc->on_lbutton_up(x, y, /*client_x*/ x, /*client_y*/ y, redraw_box);
+	}
 	// *redraw |= doc->on_mouse_leave(redraw_box);
 	return click_ie&0x2;
 }
@@ -158,14 +202,25 @@ litehtml::uint_ptr get_drawable(struct fb_fix_screeninfo *_finfo, struct fb_var_
 		code=1 -> y
 		value -> val
 */
-unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret) {
+unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned char last_click) {
 	fd_set read_fds, write_fds, except_fds;
 	struct timeval timeout;
 	struct input_event move_ie;
 
-	unsigned char click_ie = 0;
+	unsigned char click_ie[3];
+	click_ie[0] = last_click;
 	bool y_flag=false, x_flag=false;
 	int x = *x_ret, y = *y_ret;
+
+	#define TARGET_X 800.0
+	#define TARGET_Y 600.0
+
+	#define MX_MIN 184.0
+	#define MX_MAX 65391.0
+	#define MY_MIN 245.0
+	#define MY_MAX 65343.0
+	#define MX_SCL 82.0
+	#define MY_SCL 109.0
 
 	/* Initialize file descriptor sets and set timeout */
 	#define fd_ready_select(fd, sec, usec) \
@@ -176,15 +231,15 @@ unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret) {
 		timeout.tv_sec = sec; \
 		timeout.tv_usec = usec;
 
-	/* Set timeout to 1.0 seconds */
-	fd_ready_select(mcf, 1, 0);
+	/* Set timeout to 1.0 microseconds */
+	fd_ready_select(mcf, 0, 1);
 
 	/* Update mouse click */
 	if (select(mcf + 1, &read_fds, &write_fds, &except_fds, &timeout) == 1) {
 		time_t timev;
 		time(&timev);
-		read(mcf, &click_ie, sizeof(unsigned char));
-		printf("click %d at pos (%d,%d) at time %ld\n", click_ie, x, y, timev);
+		read(mcf, &click_ie, sizeof(click_ie));
+		// printf("click %d at pos (%d,%d) at time %ld\n", click_ie[0], x, y, timev);
 	} else {
 		/* timeout or error */
 		// std::cout << "click none" << std::endl;
@@ -241,7 +296,16 @@ unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret) {
 		}
 	}
 
-	*x_ret = x;
-	*y_ret = y;
-	return click_ie;
+	if (x>MX_MAX)x=MX_MAX;
+	if (x<MX_MIN)x=MX_MIN;
+	if (y>MY_MAX)y=MY_MAX;
+	if (y<MY_MIN)y=MY_MIN;
+
+	x = static_cast<double>(x-MX_MIN)/(MX_MAX-MX_MIN)*TARGET_X;
+	if (x>11) *x_ret = x;
+
+	y = static_cast<double>(y-MY_MIN)/(MY_MAX-MY_MIN)*TARGET_Y;
+	if (y>7) *y_ret = y;
+
+	return click_ie[0];
 }

@@ -58,9 +58,25 @@ center {
 }
 
 a:link {
-	text-decoration: underline;
-	color: #00f;
+	color: #00e;
 	cursor: pointer;
+}
+
+a:visited {
+    color: #551a8b;
+    cursor: pointer;
+}
+
+a:hover {
+    text-decoration: underline;
+    color: #00e;
+    cursor: pointer;
+}
+
+a:active {
+    text-decoration: underline;
+    color: #e00;
+    cursor: pointer;
 }
 
 h1, h2, h3, h4, h5, h6, div {

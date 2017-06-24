@@ -19,22 +19,32 @@ private:
 	FT_Face m_default_face;
 	FT_GlyphSlot m_slot;
 
-	std::string m_directory;
+	std::string m_directory, m_new_page;
 	struct fb_fix_screeninfo* m_finfo;
 	struct fb_var_screeninfo* m_vinfo;
 
-public:
+	bool m_cursor;
 	uint32_t* m_back_buffer;
 
+public:
 	// test_container(void);
-	test_container(std::string prefix, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo);
+	test_container(std::string prefix, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo, FT_Library library);
 	~test_container(void);
 
 	inline uint32_t pixel_color(uint8_t r, uint8_t g, uint8_t b, struct fb_var_screeninfo *vinfo);
 	void draw_rect(litehtml::uint_ptr hdc, const litehtml::position& rect, litehtml::web_color color);
 	void draw_rect(litehtml::uint_ptr hdc, int xpos, int ypos, int width, int height, litehtml::web_color color);
+	void draw_mouse(litehtml::uint_ptr hdc, int xpos, int ypos, unsigned char click);
+	void swap_buffer(litehtml::uint_ptr src_hdc, litehtml::uint_ptr dest_hdc, struct fb_var_screeninfo *vinfo, struct fb_fix_screeninfo *finfo);
 	void swap_buffer(litehtml::uint_ptr hdc);
+	void clear_screen();
 	void load_font(litehtml::uint_ptr hFont);
+
+	std::string get_new_page();
+
+	bool check_new_page(){return m_new_page != "";}
+	uint32_t* get_back_buffer(){return m_back_buffer;}
+	std::string get_directory(){return m_directory;}
 
 	/* From abstract class "litehtml::document_container" in "litehtml/src/html.h"
 	   see also: https://github.com/litehtml/litehtml/wiki/document_container */

@@ -10,7 +10,7 @@ image_loader::image_loader() {
 }
 
 image_loader::~image_loader() {
-    std::cout << "dtor ~image_loader" << std::endl;
+    // std::cout << "dtor ~image_loader" << std::endl;
     destroy();
 }
 
