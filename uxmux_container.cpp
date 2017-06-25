@@ -2,7 +2,7 @@
 
 /* See https://github.com/litehtml/litehtml/wiki/document_container */
 
-uxmux_container::uxmux_container(std::string prefix, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo, FT_Library* library) {
+uxmux_container::uxmux_container(std::string prefix, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo) {
     // printf("ctor uxmux_container\n");
 
     if (strcmp(prefix.c_str(),"")!=0)
@@ -17,7 +17,9 @@ uxmux_container::uxmux_container(std::string prefix, struct fb_fix_screeninfo* f
     m_new_page = "";
     m_new_page_alt = "";
 
-    m_library = library;
+    /* Setup Font Library */
+    FT_Init_FreeType(&m_library);
+
     litehtml::font_metrics fm;
     m_default_font.font = 0;
     m_default_font.valid = false;
@@ -28,9 +30,6 @@ uxmux_container::uxmux_container(std::string prefix, struct fb_fix_screeninfo* f
 
 uxmux_container::~uxmux_container(void) {
     // printf("dtor ~uxmux_container\n");
-}
-
-void uxmux_container::clear_fonts() {
     if (!m_fonts.empty()) {
         std::unordered_map<std::string, font_structure_t>::iterator it;
         for (it=m_fonts.begin(); it!=m_fonts.end(); ++it){
@@ -43,6 +42,7 @@ void uxmux_container::clear_fonts() {
         }
         m_fonts.clear();
     }
+    FT_Done_FreeType(m_library);
 }
 
 inline uint32_t uxmux_container::pixel_color(uint8_t r, uint8_t g, uint8_t b, struct fb_var_screeninfo *vinfo) {
@@ -93,9 +93,10 @@ void uxmux_container::draw_mouse(litehtml::uint_ptr hdc, int xpos, int ypos, uns
     if (m_cursor) {
         draw_rect(hdc, xpos-1, ypos-4, 3, 9, litehtml::web_color(click&0x4?0xff:0, click&0x2?0xff:0, click&0x1?0xff:0));
         draw_rect(hdc, xpos-4, ypos-1, 9, 3, litehtml::web_color(click&0x4?0xff:0, click&0x2?0xff:0, click&0x1?0xff:0));
-    } else
+    } else {
         draw_rect(hdc, xpos-1, ypos-2, 3, 5, litehtml::web_color(click&0x4?0xff:0, click&0x2?0xff:0, click&0x1?0xff:0));
         draw_rect(hdc, xpos-2, ypos-1, 5, 3, litehtml::web_color(click&0x4?0xff:0, click&0x2?0xff:0, click&0x1?0xff:0));
+    }
 }
 
 void uxmux_container::draw_rect(litehtml::uint_ptr hdc, const litehtml::position& rect, const litehtml::web_color& color) {
@@ -177,13 +178,13 @@ litehtml::uint_ptr uxmux_container::create_font(const litehtml::tchar_t* faceNam
         }
 
         if (!isdefault) {
-            if (FT_New_Face(*m_library, (m_directory+"fonts/"+name+mod+".ttf").c_str(), 0, &m_face)) {
+            if (FT_New_Face(m_library, (m_directory+"fonts/"+name+mod+".ttf").c_str(), 0, &m_face)) {
                 // printf("   Error loading: fonts/%s.tff\n   Looking in system instead..\n", (name+mod).c_str());
-                if (FT_New_Face(*m_library, ("/usr/share/fonts/truetype/dejavu/"+name+mod+".ttf").c_str(), 0, &m_face)) {
+                if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+mod+".ttf").c_str(), 0, &m_face)) {
                     // printf("   Not found. Trying alternative: fonts/%s.tff\n", (name+modalt).c_str());
-                    if (FT_New_Face(*m_library, (m_directory+"fonts/"+name+modalt+".ttf").c_str(), 0, &m_face)) {
+                    if (FT_New_Face(m_library, (m_directory+"fonts/"+name+modalt+".ttf").c_str(), 0, &m_face)) {
                         // printf("   Error loading: fonts/%s.tff\n   Looking in system instead..\n", (name+modalt).c_str());
-                        if (FT_New_Face(*m_library, ("/usr/share/fonts/truetype/dejavu/"+name+modalt+".ttf").c_str(), 0, &m_face)) {
+                        if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+modalt+".ttf").c_str(), 0, &m_face)) {
                             printf("   WARNING: %s.tff (alt %s.tff) could not be found.\n", (name+mod).c_str(), (name+modalt).c_str());
                             /* Try loading default font */
                             name = get_default_font_name();
@@ -193,13 +194,13 @@ litehtml::uint_ptr uxmux_container::create_font(const litehtml::tchar_t* faceNam
                             }
 
                             if (!isdefault) {
-                                if (FT_New_Face(*m_library, (m_directory+"fonts/"+name+mod+".ttf").c_str(), 0, &m_face)) {
+                                if (FT_New_Face(m_library, (m_directory+"fonts/"+name+mod+".ttf").c_str(), 0, &m_face)) {
                                     // printf("   Error loading: fonts/%s.tff\n   Looking in system instead..\n", (name+mod).c_str());
-                                    if (FT_New_Face(*m_library, ("/usr/share/fonts/truetype/dejavu/"+name+mod+".ttf").c_str(), 0, &m_face)) {
+                                    if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+mod+".ttf").c_str(), 0, &m_face)) {
                                         // printf("   Not found. Trying alternative: fonts/%s.tff\n", (name+modalt).c_str());
-                                        if (FT_New_Face(*m_library, (m_directory+"fonts/"+name+modalt+".ttf").c_str(), 0, &m_face)) {
+                                        if (FT_New_Face(m_library, (m_directory+"fonts/"+name+modalt+".ttf").c_str(), 0, &m_face)) {
                                             // printf("   Error loading: fonts/%s.tff\n   Looking in system instead..\n", (name+modalt).c_str());
-                                            if (FT_New_Face(*m_library, ("/usr/share/fonts/truetype/dejavu/"+name+modalt+".ttf").c_str(), 0, &m_face)) {
+                                            if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+modalt+".ttf").c_str(), 0, &m_face)) {
                                                 printf("      WARNING: default_font [%s.tff (alt %s.tff)] could not be found.\n", (name+mod).c_str(), (name+modalt).c_str());
                                                 /* If all else fails, try to see if we've loaded a font before and use that */
                                                 if (!m_default_font.valid)
@@ -268,12 +269,6 @@ litehtml::uint_ptr uxmux_container::create_font(const litehtml::tchar_t* faceNam
 
 void uxmux_container::delete_font(litehtml::uint_ptr hFont) {
     // printf("delete_font\n");
-    // font_structure_t font_struct = *reinterpret_cast<font_structure_t*>(hFont);
-    // if (font_struct.valid && font_struct.font) {
-    //     FT_Done_Face(font_struct.font);
-    //     font_struct.valid = false;
-    //     font_struct.font = 0;
-    // }
 }
 
 int uxmux_container::text_width(const litehtml::tchar_t* text, litehtml::uint_ptr hFont) {

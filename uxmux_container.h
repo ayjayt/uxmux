@@ -24,7 +24,7 @@ private:
 
 	std::unordered_map<std::string, font_structure_t> m_fonts;
 
-	FT_Library* m_library;
+	FT_Library m_library;
 	FT_Face m_face;
 	FT_GlyphSlot m_slot;
 
@@ -39,7 +39,7 @@ private:
 
 public:
 	// uxmux_container(void);
-	uxmux_container(std::string prefix, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo, FT_Library* library);
+	uxmux_container(std::string prefix, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo);
 	~uxmux_container(void);
 
 	inline uint32_t pixel_color(uint8_t r, uint8_t g, uint8_t b, struct fb_var_screeninfo *vinfo);
@@ -51,7 +51,6 @@ public:
 	void clear_screen();
 	void load_font(litehtml::uint_ptr hFont);
 	void load_font(font_structure_t font_struct);
-	void clear_fonts();
 
 	std::string get_new_page();
 	std::string get_new_page_alt();

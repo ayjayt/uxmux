@@ -10,9 +10,6 @@
 #include "litehtml.h"
 #include "uxmux_container.h"
 
-#include <ft2build.h>
-#include FT_FREETYPE_H
-
 /* TODO: After it works well, lets clean things up, make it neat. Look for optimizations, deal with warnings.. */
 
 /* BEWARE: It seems that these can change on reboot */
@@ -28,8 +25,6 @@ litehtml::uint_ptr get_drawable(struct fb_fix_screeninfo *_finfo, struct fb_var_
 unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned char last_click);
 
 int main(int argc, char* argv[]) {
-	FT_Library font_library = 0;
-
 	if (argc!=3) {
 		printf("usage: %s <html_file> <master_css>\n", argv[0]);
 	} else {
@@ -71,10 +66,7 @@ int main(int argc, char* argv[]) {
 		/* Separate draw layer for mouse */
 		litehtml::uint_ptr hdcMouse = mmap(0, vinfo.yres_virtual * finfo.line_length, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, off_t(0));
 
-		/* Setup Font Library */
-		FT_Init_FreeType(&font_library);
-
-		uxmux_container painter(prefix, &finfo, &vinfo, &font_library);
+		uxmux_container* painter = new uxmux_container(prefix, &finfo, &vinfo);
 		litehtml::context context;
 
 		/* Start litehtml rendering
@@ -83,7 +75,7 @@ int main(int argc, char* argv[]) {
 		context.load_master_stylesheet(buffer2.str().c_str());
 		// printf("createFromString\n");
 		litehtml::document::ptr doc;
-		doc = litehtml::document::createFromString(buffer.str().c_str(), &painter, &context);
+		doc = litehtml::document::createFromString(buffer.str().c_str(), painter, &context);
 
 		bool done = false, redraw = true, is_clicked = false;
 		int x=-1, y=-1;
@@ -112,11 +104,11 @@ int main(int argc, char* argv[]) {
 
 		/* Main program loop */
 		while (!done) {
-			render(hdc, doc, &painter, &vinfo, &finfo, hdcMouse, x, y, click_ie, redraw);
+			render(hdc, doc, painter, &vinfo, &finfo, hdcMouse, x, y, click_ie, redraw);
 
 			click_ie = handle_mouse(mcf, mmf, &x, &y, click_ie);
-			if(painter.check_new_page()) {
-				std::string page = painter.get_directory()+painter.get_new_page();
+			if(painter->check_new_page()) {
+				std::string page = painter->get_directory()+painter->get_new_page();
 				// printf("new_page: %s\n", page.c_str());
 
 				std::ifstream t3(page.c_str());
@@ -125,17 +117,15 @@ int main(int argc, char* argv[]) {
 					buffer3 << t3.rdbuf();
 					// printf("%s\n", buffer3.str().c_str());
 
-					/* Buggy when removing fonts by destructors, needs manual clean */
-					painter.clear_fonts();
 					// printf("createFromString: %s\n", page.c_str());
 					if (std::count(page.begin(), page.end(), '/') > 0)
 						page = page.substr(0, page.find_last_of('/'));
 					else page = "";
-					painter = uxmux_container(page, &finfo, &vinfo, &font_library);
-					doc = litehtml::document::createFromString(buffer3.str().c_str(), &painter, &context);
+					painter = new uxmux_container(page, &finfo, &vinfo);
+					doc = litehtml::document::createFromString(buffer3.str().c_str(), painter, &context);
 					continue;
-				} else if (painter.check_new_page_alt()) {
-					page = painter.get_directory()+painter.get_new_page_alt();
+				} else if (painter->check_new_page_alt()) {
+					page = painter->get_directory()+painter->get_new_page_alt();
 					// printf("alt_page: %s\n", page.c_str());
 
 					std::ifstream t4(page.c_str());
@@ -144,14 +134,12 @@ int main(int argc, char* argv[]) {
 						buffer4 << t4.rdbuf();
 						// printf("%s\n", buffer4.str().c_str());
 
-						/* Buggy when removing fonts by destructors, needs manual clean */
-						painter.clear_fonts();
 						// printf("createFromString: %s\n", page.c_str());
 						if (std::count(page.begin(), page.end(), '/') > 0)
 							page = page.substr(0, page.find_last_of('/'));
 						else page = "";
-						painter = uxmux_container(page, &finfo, &vinfo, &font_library);
-						doc = litehtml::document::createFromString(buffer4.str().c_str(), &painter, &context);
+						painter = new uxmux_container(page, &finfo, &vinfo);
+						doc = litehtml::document::createFromString(buffer4.str().c_str(), painter, &context);
 						continue;
 					}
 				}
@@ -161,14 +149,6 @@ int main(int argc, char* argv[]) {
 
 		ioctl(tty_fd, KDSETMODE, KD_TEXT);
 		///////////////////////////////////////////////////////////
-
-		/* Buggy when removing fonts by destructors, needs manual clean */
-		painter.clear_fonts();
-	}
-
-	if (font_library) {
-		// printf("clean up FontLibrary\n");
-		FT_Done_FreeType(font_library);
 	}
 
 	// printf("Completed.\n");
