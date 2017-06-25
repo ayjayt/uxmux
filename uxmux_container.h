@@ -39,7 +39,8 @@ private:
 
 public:
 	uxmux_container(std::string prefix, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo) :
-	    m_finfo(finfo), m_vinfo(vinfo), m_default_font({0, false}), m_cursor(false), m_new_page(""), m_new_page_alt("")
+	    m_finfo(finfo), m_vinfo(vinfo), m_default_font({0, false}), m_cursor(false), m_new_page(""), m_new_page_alt(""),
+	    m_back_buffer(static_cast<uint32_t*>(mmap(0, vinfo->yres_virtual * finfo->line_length, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, off_t(0))))
 	{
 	    // printf("ctor uxmux_container\n");
 
@@ -47,7 +48,6 @@ public:
 	        m_directory = prefix+"/";
 	    else
 	        m_directory = "";
-	    m_back_buffer = static_cast<uint32_t*>(mmap(0, vinfo->yres_virtual * finfo->line_length, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, off_t(0)));
 
 	    /* Setup Font Library */
 	    FT_Init_FreeType(&m_library);
@@ -61,19 +61,21 @@ public:
 
 	~uxmux_container(void) {
 	    // printf("dtor ~uxmux_container\n");
-	    if (!m_fonts.empty()) {
-	        std::unordered_map<std::string, font_structure_t>::iterator it;
-	        for (it=m_fonts.begin(); it!=m_fonts.end(); ++it) {
-	            // printf("   delete_font: %s\n", it->first.c_str());
-	            if (it->second.valid && it->second.font) {
-	                FT_Done_Face(it->second.font);
-	                it->second.valid = false;
-	                it->second.font = 0;
-	            }
-	        }
-	        m_fonts.clear();
-	    }
-	    FT_Done_FreeType(m_library);
+		if (m_library) {
+		    if (!m_fonts.empty()) {
+		        std::unordered_map<std::string, font_structure_t>::iterator it;
+		        for (it=m_fonts.begin(); it!=m_fonts.end(); ++it) {
+		            // printf("   delete_font: %s\n", it->first.c_str());
+		            if (it->second.valid && it->second.font) {
+		                FT_Done_Face(it->second.font);
+		                it->second.valid = false;
+		                it->second.font = 0;
+		            }
+		        }
+		        m_fonts.clear();
+		    }
+		    FT_Done_FreeType(m_library);
+		}
 	}
 
 	void swap_buffer(litehtml::uint_ptr hdc) {
@@ -119,15 +121,10 @@ public:
 	    }
 	}
 
-	void load_font(litehtml::uint_ptr hFont) {
-	    font_structure_t* font_struct = reinterpret_cast<font_structure_t*>(hFont);
-	    load_font(*font_struct);
-	}
-
-	void load_font(font_structure_t font_struct) {
-	    m_face = font_struct.font;
-	    if (!font_struct.valid || !m_face) {
-	        font_struct.valid = false;
+	void load_font(font_structure_t* font_struct) {
+	    m_face = font_struct->font;
+	    if (!font_struct->valid || !m_face) {
+	        font_struct->valid = false;
 	        if (m_default_font.valid)
 	            m_face = m_default_font.font;
 	        else {
@@ -202,7 +199,7 @@ public:
 	        bool isdefault = false;
 	        if (m_fonts.count(name+mod+std::to_string(decoration)+std::to_string(size))) {
 	            /* If font already exists, retrieve it */
-	            load_font(m_fonts[name+mod+std::to_string(decoration)+std::to_string(size)]);
+	            load_font(&m_fonts[name+mod+std::to_string(decoration)+std::to_string(size)]);
 	            if (m_face) isdefault = true;
 	            /* Note we never save fonts using modalt so no need to check when loading */
 	        }
@@ -219,7 +216,7 @@ public:
 	                            /* Try loading default font */
 	                            name = get_default_font_name();
 	                            if (m_fonts.count(name+mod+std::to_string(decoration)+std::to_string(size))) {
-	                                load_font(m_fonts[name+mod+std::to_string(decoration)+std::to_string(size)]);
+	                                load_font(&m_fonts[name+mod+std::to_string(decoration)+std::to_string(size)]);
 	                                if (m_face) isdefault = true;
 	                            }
 
@@ -236,7 +233,7 @@ public:
 	                                                if (!m_default_font.valid)
 	                                                    return 0;
 	                                                /* Last option, will cause "Critical Fail" message (see below) if fails */
-	                                                load_font(m_default_font);
+	                                                load_font(&m_default_font);
 	                                                isdefault = true;
 	                                            }
 	                                        }
@@ -304,7 +301,7 @@ public:
 	int text_width(const litehtml::tchar_t* text, litehtml::uint_ptr hFont) {
 	    // printf("text_width\n");
 
-	    load_font(hFont);
+	    load_font(reinterpret_cast<font_structure_t*>(hFont));
 	    if (!m_face) return 0;
 
 	    int width;
@@ -342,7 +339,7 @@ public:
 	void draw_text(litehtml::uint_ptr hdc, const litehtml::tchar_t* text, litehtml::uint_ptr hFont, litehtml::web_color color, const litehtml::position& pos) {
 	    // printf("draw_text: %s, at (%d, %d), size (%d, %d), color (%d, %d, %d)\n", text, pos.x, pos.y, pos.width, pos.height, static_cast<int>(color.red), static_cast<int>(color.green), static_cast<int>(color.blue));
 
-	    load_font(hFont);
+	    load_font(reinterpret_cast<font_structure_t*>(hFont));
 	    if (!m_face) return;
 
 	    // printf("   decoration: %d\n", m_face->generic.data);
