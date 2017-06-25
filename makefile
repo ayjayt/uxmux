@@ -3,5 +3,5 @@ CFLAGS += `pkg-config --cflags freetype2` `pkg-config --cflags libpng` -isystem 
 LDFLAGS = -Llib/litehtml/ -llitehtml `pkg-config --libs freetype2` `pkg-config --libs libpng`
 
 all:
-	g++ $(CFLAGS) -c main.cpp uxmux_container.cpp image_loader.cpp
-	g++ -o build/uxmux main.o uxmux_container.o image_loader.o $(LDFLAGS)
+	g++ $(CFLAGS) -c main.cpp
+	g++ -o build/uxmux main.o $(LDFLAGS)
