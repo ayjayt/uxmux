@@ -11,11 +11,11 @@ int main(int argc, char* argv[]) {
 	} else {
 		int mmf, mcf;
 		if ((mmf = open(MOUSE_MOVE_FILE, O_RDONLY))==-1) {
-			printf("ERROR opening MOUSE_MOVE_FILE\n");
+			printf("ERROR opening %s\n", MOUSE_MOVE_FILE);
 			mmf = 0;
 			mcf = 0;
 		} else if ((mcf = open(MOUSE_CLICK_FILE, O_RDONLY))==-1) {
-			printf("ERROR opening MOUSE_CLICK_FILE\n");
+			printf("ERROR opening %s\n", MOUSE_CLICK_FILE);
 			mmf = 0;
 			mcf = 0;
 		}
@@ -44,6 +44,11 @@ int main(int argc, char* argv[]) {
 		struct fb_fix_screeninfo finfo;
 		struct fb_var_screeninfo vinfo;
 		litehtml::uint_ptr hdc = get_drawable(&finfo, &vinfo);
+		if (!hdc) {
+			printf("ERROR opening %s\n", FRAMEBUFFER_FILE);
+			return 0;
+		}
+
 		/* Separate draw layer for mouse */
 		litehtml::uint_ptr hdcMouse = mmap(0, vinfo.yres_virtual * finfo.line_length, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, off_t(0));
 
@@ -66,7 +71,7 @@ int main(int argc, char* argv[]) {
 		if (mcf&&mmf) {
 			printf("Right click screen to start. (Then again to exit.)\n");
 			unsigned char val = handle_mouse(mcf, mmf, &x, &y, 0);
-			while (!val&0x7)val=handle_mouse(mcf, mmf, &x, &y, 0);
+			while (!(val&0x7))val=handle_mouse(mcf, mmf, &x, &y, 0);
 			while (val&0x2||val==0)val=handle_mouse(mcf, mmf, &x, &y, 0);
 		} else {
 			printf("Press enter to start. (Then again to exit.)\n");

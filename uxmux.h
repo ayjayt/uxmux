@@ -23,20 +23,25 @@
 #define FRAMEBUFFER_FILE "/dev/fb0"
 #define TTY_FILE "/dev/tty0"
 
+unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned char last_click);
+litehtml::uint_ptr get_drawable(struct fb_fix_screeninfo *_finfo, struct fb_var_screeninfo *_vinfo);
+bool update(litehtml::document::ptr doc, unsigned char click_ie, int x, int y, bool* redraw, bool* is_clicked);
+void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, uxmux_container* painter, struct fb_var_screeninfo* vinfo, struct fb_fix_screeninfo* finfo, litehtml::uint_ptr hdcMouse, int x, int y, unsigned char click_ie, bool redraw);
+
 /* Render and draw to the screen*/
 void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, uxmux_container* painter, struct fb_var_screeninfo* vinfo, struct fb_fix_screeninfo* finfo, litehtml::uint_ptr hdcMouse, int x, int y, unsigned char click_ie, bool redraw) {
 		if (redraw) {
 		    /* Clear the screen to white */
-			painter->draw_rect(painter->get_back_buffer(), 0, 0, vinfo->xres, vinfo->yres, litehtml::web_color(0xff, 0xff, 0xff));
+			painter->draw_rect(painter->get_back_buffer(), 0, 0, static_cast<int>(vinfo->xres), static_cast<int>(vinfo->yres), 0xff, 0xff, 0xff);
 
 			// printf("rendering..\n");
-			doc->render(vinfo->xres);
+			doc->render(static_cast<int>(vinfo->xres));
 			// printf("drawing..\n");
 			doc->draw(painter->get_back_buffer(),0,0,0);
 		}
 
 		/* Render mouse on separate layer */
-		painter->swap_buffer(hdcMouse);
+		painter->swap_buffer(painter->get_back_buffer(), hdcMouse, vinfo, finfo);
 		painter->draw_mouse(hdcMouse, x, y, click_ie);
 
 		/* Copy buffer layer to screen layer */
@@ -64,8 +69,7 @@ bool update(litehtml::document::ptr doc, unsigned char click_ie, int x, int y, b
 	if (click_ie&0x10) return true;
 
 	litehtml::position::vector redraw_box;
-	*redraw = false;
-	*redraw |= doc->on_mouse_over(x, y, /*client_x*/ x, /*client_y*/ y, redraw_box);
+	*redraw = doc->on_mouse_over(x, y, /*client_x*/ x, /*client_y*/ y, redraw_box);
 	if (click_ie&0x1) {
 		*is_clicked=true;
 		*redraw |= doc->on_lbutton_down(x, y, /*client_x*/ x, /*client_y*/ y, redraw_box);
@@ -77,26 +81,24 @@ bool update(litehtml::document::ptr doc, unsigned char click_ie, int x, int y, b
 	return click_ie&0x2;
 }
 
-/* Get fb0 as a drawable object */
+/* Get framebuffer as a drawable object */
 litehtml::uint_ptr get_drawable(struct fb_fix_screeninfo *_finfo, struct fb_var_screeninfo *_vinfo) {
 	struct fb_fix_screeninfo finfo;
 	struct fb_var_screeninfo vinfo;
 
 	int fb_fd = open(FRAMEBUFFER_FILE, O_RDWR);
+	if (!fb_fd) return 0;
 	ioctl(fb_fd, FBIOGET_FSCREENINFO, &finfo);
 	ioctl(fb_fd, FBIOGET_VSCREENINFO, &vinfo);
-	vinfo.grayscale = 0;
 	vinfo.bits_per_pixel = 32;
 	ioctl(fb_fd, FBIOPUT_VSCREENINFO, &vinfo);
 	ioctl(fb_fd, FBIOGET_VSCREENINFO, &vinfo);
 
-	long screensize = vinfo.yres_virtual* finfo.line_length;
-	uint8_t* fbp = static_cast<uint8_t*>(mmap(0, screensize, PROT_READ|PROT_WRITE, MAP_SHARED, fb_fd, off_t(0)));
-
 	*_finfo = finfo;
 	*_vinfo = vinfo;
 
-	return fbp;
+	/* screensize = vinfo.yres_virtual * finfo.line_length */
+	return static_cast<uint8_t*>(mmap(0, vinfo.yres_virtual*finfo.line_length, PROT_READ|PROT_WRITE, MAP_SHARED, fb_fd, off_t(0)));
 }
 
 /* Mouse Reference:
@@ -117,10 +119,9 @@ unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned ch
 	struct timeval timeout;
 	struct input_event move_ie;
 
-	unsigned char click_ie[3];
-	click_ie[0] = last_click;
-	bool y_flag=false, x_flag=false;
-	int x = *x_ret, y = *y_ret;
+	unsigned char click_ie[3] {last_click,0,0};
+	bool y_flag(false), x_flag(false);
+	int x(*x_ret), y(*y_ret);
 
 	#define TARGET_X 800.0f
 	#define TARGET_Y 600.0f

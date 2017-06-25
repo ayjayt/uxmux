@@ -20,43 +20,35 @@ private:
 		bool valid;
 	};
 	typedef struct font_structure font_structure_t;
-	font_structure_t m_default_font;
 
 	std::unordered_map<std::string, font_structure_t> m_fonts;
+
+    image_loader m_image_loader;
+
+	struct fb_fix_screeninfo* m_finfo;
+	struct fb_var_screeninfo* m_vinfo;
+	font_structure_t m_default_font;
+	bool m_cursor;
+	std::string m_new_page, m_new_page_alt, m_directory;
 
 	FT_Library m_library;
 	FT_Face m_face;
 	FT_GlyphSlot m_slot;
 
-    image_loader m_image_loader;
-
-	std::string m_directory, m_new_page, m_new_page_alt;
-	struct fb_fix_screeninfo* m_finfo;
-	struct fb_var_screeninfo* m_vinfo;
-
-	bool m_cursor;
 	uint32_t* m_back_buffer;
 
 public:
 	uxmux_container(std::string prefix, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo) :
-	    m_finfo(finfo), m_vinfo(vinfo), m_default_font({0, false}), m_cursor(false), m_new_page(""), m_new_page_alt(""),
-	    m_back_buffer(static_cast<uint32_t*>(mmap(0, vinfo->yres_virtual * finfo->line_length, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, off_t(0))))
+	    m_finfo(finfo), m_vinfo(vinfo), m_default_font({0, false}), m_cursor(false), m_new_page(""), m_new_page_alt(""), m_directory((strcmp(prefix.c_str(),"")!=0)?(prefix+"/"):""),
+	    m_face(0), m_slot(0), m_back_buffer(static_cast<uint32_t*>(mmap(0, vinfo->yres_virtual * finfo->line_length, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, off_t(0))))
 	{
 	    // printf("ctor uxmux_container\n");
-
-	    if (strcmp(prefix.c_str(),"")!=0)
-	        m_directory = prefix+"/";
-	    else
-	        m_directory = "";
 
 	    /* Setup Font Library */
 	    FT_Init_FreeType(&m_library);
 
-	    litehtml::font_metrics fm;
-	    create_font(get_default_font_name(), get_default_font_size(), 400, litehtml::font_style(0), 0, &fm);
-
 	    /* Clear the screen to white */
-	    draw_rect(m_back_buffer, 0, 0, m_vinfo->xres, m_vinfo->yres, litehtml::web_color(0xff, 0xff, 0xff));
+	    draw_rect(m_back_buffer, 0, 0, static_cast<int>(m_vinfo->xres), static_cast<int>(m_vinfo->yres), 0xff, 0xff, 0xff);
 	}
 
 	~uxmux_container(void) {
@@ -78,16 +70,9 @@ public:
 		}
 	}
 
-	void swap_buffer(litehtml::uint_ptr hdc) {
-	    int i;
-	    for (i=0; i<(m_vinfo->yres_virtual * m_finfo->line_length)/4; i++) {
-	        (reinterpret_cast<uint32_t*>(hdc))[i] = m_back_buffer[i];
-	    }
-	}
-
 	void swap_buffer(litehtml::uint_ptr src_hdc, litehtml::uint_ptr dest_hdc, struct fb_var_screeninfo *vinfo, struct fb_fix_screeninfo *finfo) {
 	    int i;
-	    for (i=0; i<(vinfo->yres_virtual * finfo->line_length)/4; i++) {
+	    for (i=0; i<static_cast<int>(vinfo->yres_virtual * finfo->line_length/4); i++) {
 	        (reinterpret_cast<uint32_t*>(dest_hdc))[i] = reinterpret_cast<uint32_t*>(src_hdc)[i];
 	    }
 	}
@@ -95,28 +80,28 @@ public:
 	void draw_mouse(litehtml::uint_ptr hdc, int xpos, int ypos, unsigned char click) {
 	    // printf("draw_mouse, at (%d, %d)\n", xpos, ypos);
 	    if (m_cursor) {
-	        draw_rect(hdc, xpos-1, ypos-4, 3, 9, litehtml::web_color(click&0x4?0xff:0, click&0x2?0xff:0, click&0x1?0xff:0));
-	        draw_rect(hdc, xpos-4, ypos-1, 9, 3, litehtml::web_color(click&0x4?0xff:0, click&0x2?0xff:0, click&0x1?0xff:0));
+	        draw_rect(hdc, xpos-1, ypos-4, 3, 9, click&0x4?0xff:0, click&0x2?0xff:0, click&0x1?0xff:0);
+	        draw_rect(hdc, xpos-4, ypos-1, 9, 3, click&0x4?0xff:0, click&0x2?0xff:0, click&0x1?0xff:0);
 	    } else {
-	        draw_rect(hdc, xpos-1, ypos-2, 3, 5, litehtml::web_color(click&0x4?0xff:0, click&0x2?0xff:0, click&0x1?0xff:0));
-	        draw_rect(hdc, xpos-2, ypos-1, 5, 3, litehtml::web_color(click&0x4?0xff:0, click&0x2?0xff:0, click&0x1?0xff:0));
+	        draw_rect(hdc, xpos-1, ypos-2, 3, 5, click&0x4?0xff:0, click&0x2?0xff:0, click&0x1?0xff:0);
+	        draw_rect(hdc, xpos-2, ypos-1, 5, 3, click&0x4?0xff:0, click&0x2?0xff:0, click&0x1?0xff:0);
 	    }
 	}
 
-	void draw_rect(litehtml::uint_ptr hdc, const litehtml::position& rect, const litehtml::web_color& color) {
-	    draw_rect(hdc, rect.x, rect.y, rect.width, rect.height, color);
+	void draw_rect(litehtml::uint_ptr hdc, const litehtml::position& rect, unsigned char red, unsigned char green, unsigned char blue) {
+	    draw_rect(hdc, rect.x, rect.y, rect.width, rect.height, red, blue, green);
 	}
 
-	void draw_rect(litehtml::uint_ptr hdc, int xpos, int ypos, int width, int height, const litehtml::web_color& color) {
-	    // printf("   draw_rect, at (%d, %d), size (%d, %d), color (%d, %d, %d)\n", xpos, ypos, width, height, static_cast<int>(color.red), static_cast<int>(color.green), static_cast<int>(color.blue));
+	void draw_rect(litehtml::uint_ptr hdc, int xpos, int ypos, int width, int height, unsigned char red, unsigned char green, unsigned char blue) {
+	    // printf("   draw_rect, at (%d, %d), size (%d, %d), color (%d, %d, %d)\n", xpos, ypos, width, height, red, green, blue);
 
-	    long x, y;
+	    int x, y;
 	    for (x = xpos; x < xpos + width; x++) {
 	        for (y = ypos; y < ypos + height; y++) {
-	            if (x < 0 || y < 0 || x >= m_vinfo->xres || y >= m_vinfo->yres)
+	            if (x < 0 || y < 0 || x >= static_cast<int>(m_vinfo->xres) || y >= static_cast<int>(m_vinfo->yres))
 	                continue;
-	            long location = (x+m_vinfo->xoffset)*(m_vinfo->bits_per_pixel/8) + (y+m_vinfo->yoffset)*m_finfo->line_length;
-	            *(reinterpret_cast<uint32_t*>(hdc+location)) = static_cast<uint32_t>(color.red<<m_vinfo->red.offset | color.green<<m_vinfo->green.offset | color.blue<<m_vinfo->blue.offset);
+	            long location = (x+static_cast<int>(m_vinfo->xoffset))*(static_cast<int>(m_vinfo->bits_per_pixel)/8) + (y+static_cast<int>(m_vinfo->yoffset))*static_cast<int>(m_finfo->line_length);
+	            *(reinterpret_cast<uint32_t*>(reinterpret_cast<long>(hdc)+location)) = static_cast<uint32_t>(red<<m_vinfo->red.offset | green<<m_vinfo->green.offset | blue<<m_vinfo->blue.offset);
 	        }
 	    }
 	}
@@ -284,7 +269,7 @@ public:
 	        FT_Set_Transform(m_face, &matrix, &pen);
 	        FT_Load_Char(m_face, 'x', FT_LOAD_RENDER);
 
-	        fm->x_height = m_slot->bitmap.rows;
+	        fm->x_height = static_cast<int>(m_slot->bitmap.rows);
 
 	        // printf("      height=%d, ascent=%d, descent=%d, x_height=%d\n", fm->height, fm->ascent, fm->descent, fm->x_height);
 
@@ -304,8 +289,6 @@ public:
 	    load_font(reinterpret_cast<font_structure_t*>(hFont));
 	    if (!m_face) return 0;
 
-	    int width;
-
 	    /* set up matrix */
 	    FT_Matrix matrix;
 	    // float angle = 0;
@@ -319,21 +302,21 @@ public:
 	    pen.y = 0;
 
 	    int n;
-	    for (n = 0; n < strlen(text); n++) {
+	    for (n = 0; n < static_cast<int>(strlen(text)); n++) {
 	        FT_Set_Transform(m_face, &matrix, &pen);
 	        /* load glyph image into the slot (erase previous one) */
-	        if (FT_Load_Char(m_face, text[n], FT_LOAD_RENDER))
+	        if (FT_Load_Char(m_face, static_cast<FT_ULong>(text[n]), FT_LOAD_RENDER))
 	            continue;  /* ignore errors */
 
-	        if (n == strlen(text)-1)
-	            width = m_slot->bitmap_left+m_slot->advance.x/64;
+	        if (n == static_cast<int>(strlen(text))-1)
+	            return m_slot->bitmap_left+m_slot->advance.x/64;
 
 	        /* increment pen position */
 	        pen.x += m_slot->advance.x;
 	        pen.y += m_slot->advance.y;
 	    }
 
-	    return width;
+	    return 0;
 	}
 
 	void draw_text(litehtml::uint_ptr hdc, const litehtml::tchar_t* text, litehtml::uint_ptr hFont, litehtml::web_color color, const litehtml::position& pos) {
@@ -349,9 +332,9 @@ public:
 
 	    /* Draw boxes where text should be */
 	    // if (strcmp(text, " ")==0) {
-	    //     draw_rect(hdc, xpos, ypos, pos.width, pos.height, litehtml::web_color(0xff, 0, 0));
+	    //     draw_rect(hdc, xpos, ypos, pos.width, pos.height, 0xff, 0, 0);
 	    // } else
-	    //     draw_rect(hdc, xpos, ypos, pos.width, pos.height, litehtml::web_color(0xff, 0xff, 0));
+	    //     draw_rect(hdc, xpos, ypos, pos.width, pos.height, 0xff, 0xff, 0);
 
 	    /* set up matrix */
 	    FT_Matrix matrix;
@@ -366,10 +349,10 @@ public:
 	    pen.y = ypos * 64;
 
 	    int n;
-	    for (n = 0; n < strlen(text); n++) {
+	    for (n = 0; n < static_cast<int>(strlen(text)); n++) {
 	        FT_Set_Transform(m_face, &matrix, &pen);
 	        /* load glyph image into the slot (erase previous one) */
-	        if (FT_Load_Char(m_face, text[n], FT_LOAD_RENDER))
+	        if (FT_Load_Char(m_face, static_cast<FT_ULong>(text[n]), FT_LOAD_RENDER))
 	            continue;  /* ignore errors */
 
 	        // printf("  bitmap_left=%d,  bitmap_top=%d, bitmap.width=%d, bitmap.rows=%d\n", m_slot->bitmap_left, m_slot->bitmap_top, m_slot->bitmap.width, m_slot->bitmap.rows);
@@ -378,18 +361,18 @@ public:
 	        int i, j, p, q;
 	        int targety = ypos + pos.height - m_slot->bitmap_top + ypos + m_face->size->metrics.descender/64;
 	        // printf("line height: %d\n", m_face->size->metrics.height/64);
-	        for (i = m_slot->bitmap_left, p = 0; i < m_slot->bitmap_left+m_slot->bitmap.width; i++, p++) {
-	            for (j = targety, q = 0; j < targety+m_slot->bitmap.rows; j++, q++) {
-	                if (i < 0 || j < 0 || i >= m_vinfo->xres || j >= m_vinfo->yres)
+	        for (i = m_slot->bitmap_left, p = 0; i < m_slot->bitmap_left+static_cast<int>(m_slot->bitmap.width); i++, p++) {
+	            for (j = targety, q = 0; j < targety+static_cast<int>(m_slot->bitmap.rows); j++, q++) {
+	                if (i < 0 || j < 0 || i >= static_cast<int>(m_vinfo->xres) || j >= static_cast<int>(m_vinfo->yres))
 	                   continue;
-	                long location = (i+m_vinfo->xoffset)*(m_vinfo->bits_per_pixel/8) + (j+m_vinfo->yoffset)*m_finfo->line_length;
-	                uint32_t col = m_slot->bitmap.buffer[q * static_cast<unsigned int>(m_slot->bitmap.width) + p];
+	                long location = (i+static_cast<int>(m_vinfo->xoffset))*(static_cast<int>(m_vinfo->bits_per_pixel)/8) + (j+static_cast<int>(m_vinfo->yoffset))*static_cast<int>(m_finfo->line_length);
+	                uint32_t col = m_slot->bitmap.buffer[q * static_cast<int>(m_slot->bitmap.width) + p];
 	                /* Split pixel color into RGB components */
-	                uint8_t col_r = col&0xff0000;
-	                uint8_t col_g = col&0xff00;
-	                uint8_t col_b = col&0xff;
+	                unsigned int col_r = (col&0xff0000)>>16;
+	                unsigned int col_g = (col&0xff00)>>8;
+	                unsigned int col_b = col&0xff;
 	                /* Find max of color components */
-	                uint8_t col_max;
+	                unsigned int col_max;
 	                col_max = col_b > col_r ? col_b : col_r;
 	                col_max = col_max > col_g ? col_max : col_g;
 	                /* Draw the text in grayscale (usually black) */
@@ -412,17 +395,17 @@ public:
 
 	    /* draw underline */
 	    if (reinterpret_cast<long>(m_face->generic.data)&litehtml::font_decoration_underline) {
-	        draw_rect(hdc, xpos, ypos+pos.height-1, pos.width, 1, color);
+	        draw_rect(hdc, xpos, ypos+pos.height-1, pos.width, 1, color.red, color.green, color.blue);
 	    }
 
 	    /* draw strikethrough */
 	    if (reinterpret_cast<long>(m_face->generic.data)&litehtml::font_decoration_linethrough) {
-	        draw_rect(hdc, xpos, ypos+pos.height/2, pos.width, 1, color);
+	        draw_rect(hdc, xpos, ypos+pos.height/2, pos.width, 1, color.red, color.green, color.blue);
 	    }
 
 	    /* draw overline */
 	    if (reinterpret_cast<long>(m_face->generic.data)&litehtml::font_decoration_overline) {
-	        draw_rect(hdc, xpos, ypos, pos.width, 1, color);
+	        draw_rect(hdc, xpos, ypos, pos.width, 1, color.red, color.green, color.blue);
 	    }
 	}
 
@@ -470,7 +453,7 @@ public:
 	*/
 	void draw_list_marker(litehtml::uint_ptr hdc, const litehtml::list_marker& marker) {
 	    // printf("draw_list_marker %s at (%d, %d)\n", marker.image.c_str(), marker.pos.x, marker.pos.y);
-	    draw_rect(hdc, marker.pos.x, marker.pos.y, marker.pos.width, marker.pos.height, marker.color);
+	    draw_rect(hdc, marker.pos.x, marker.pos.y, marker.pos.width, marker.pos.height, marker.color.red, marker.color.green, marker.color.blue);
 	}
 
 	void load_image(const litehtml::tchar_t* src, const litehtml::tchar_t* baseurl, bool redraw_on_ready) {
@@ -488,7 +471,7 @@ public:
 	        if (!m_image_loader.load_image((m_directory+bg.image).c_str()))
 	            if (!m_image_loader.copy_to_framebuffer(hdc, m_finfo, m_vinfo, bg.position_x, bg.position_y))
 	                return;
-	    draw_rect(hdc, bg.border_box.x, bg.border_box.y, bg.border_box.width, bg.border_box.height, bg.color);
+	    draw_rect(hdc, bg.border_box.x, bg.border_box.y, bg.border_box.width, bg.border_box.height, bg.color.red, bg.color.green, bg.color.blue);
 	}
 
 	/* TODO: Other border styles */
@@ -509,10 +492,10 @@ public:
 	*/
 	void draw_borders(litehtml::uint_ptr hdc, const litehtml::borders& borders, const litehtml::position& draw_pos, bool root) {
 	    // printf("draw_borders\n");
-	    draw_rect(hdc, draw_pos.x, draw_pos.y, draw_pos.width-borders.right.width, borders.top.width, borders.top.color);
-	    draw_rect(hdc, draw_pos.x, draw_pos.y+draw_pos.height-borders.bottom.width, draw_pos.width-borders.right.width, borders.bottom.width, borders.bottom.color);
-	    draw_rect(hdc, draw_pos.x, draw_pos.y, borders.left.width, draw_pos.height, borders.left.color);
-	    draw_rect(hdc, draw_pos.x+draw_pos.width-borders.right.width, draw_pos.y, borders.right.width, draw_pos.height, borders.right.color);
+	    draw_rect(hdc, draw_pos.x, draw_pos.y, draw_pos.width-borders.right.width, borders.top.width, borders.top.color.red, borders.top.color.green, borders.top.color.blue);
+	    draw_rect(hdc, draw_pos.x, draw_pos.y+draw_pos.height-borders.bottom.width, draw_pos.width-borders.right.width, borders.bottom.width, borders.bottom.color.red, borders.bottom.color.green, borders.bottom.color.blue);
+	    draw_rect(hdc, draw_pos.x, draw_pos.y, borders.left.width, draw_pos.height, borders.left.color.red, borders.left.color.green, borders.left.color.blue);
+	    draw_rect(hdc, draw_pos.x+draw_pos.width-borders.right.width, draw_pos.y, borders.right.width, draw_pos.height, borders.right.color.red, borders.right.color.green, borders.right.color.blue);
 	}
 
 	void set_caption(const litehtml::tchar_t* caption) {
@@ -576,8 +559,8 @@ public:
 	    // printf("get_client_rect (%d, %d)\n", m_vinfo->xres, m_vinfo->yres);
 	    client.x = 0;
 	    client.y = 0;
-	    client.width = m_vinfo->xres;
-	    client.height = m_vinfo->yres;
+	    client.width = static_cast<int>(m_vinfo->xres);
+	    client.height = static_cast<int>(m_vinfo->yres);
 	}
 
 	std::shared_ptr<litehtml::element> create_element(const litehtml::tchar_t* tag_name, const litehtml::string_map& attributes, const std::shared_ptr<litehtml::document>& doc) {
@@ -601,8 +584,8 @@ public:
 	    media.type = litehtml::media_type_screen;
 	    media.width = client.width;
 	    media.height = client.height;
-	    media.device_width = m_vinfo->xres;
-	    media.device_height = m_vinfo->yres;
+	    media.device_width = static_cast<int>(m_vinfo->xres);
+	    media.device_height = static_cast<int>(m_vinfo->yres);
 	    media.color = 8;
 	    media.monochrome = 0;
 	    media.color_index = 256;

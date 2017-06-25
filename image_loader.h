@@ -23,7 +23,7 @@ private:
     file_type_t m_file_type;
 
     int m_x, m_y;
-    int m_width, m_height;
+    unsigned int m_width, m_height;
 
     /* PNG */
     png_byte m_color_type;
@@ -49,7 +49,7 @@ public:
         if (m_png_ptr)
             png_destroy_read_struct(&m_png_ptr, m_info_ptr?(&m_info_ptr):((png_infopp)NULL), (png_infopp)NULL);
         if (m_row_pointers) {
-            for (m_y=0; m_y<m_height; m_y++)
+            for (m_y=0; m_y<static_cast<int>(m_height); m_y++)
                 if (m_row_pointers[m_y])
                     free(m_row_pointers[m_y]);
             free(m_row_pointers);
@@ -63,20 +63,20 @@ public:
     int copy_to_framebuffer(void* hdc, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo, int posx, int posy) {
         if (m_file_type == png) {
             int x, y;
-            for (y = posy, m_y=0; m_y<m_height; y++, m_y++) {
+            for (y = posy, m_y=0; m_y<static_cast<int>(m_height); y++, m_y++) {
                 png_byte* row = m_row_pointers[m_y];
-                for (x = posx, m_x=0; m_x<m_width; x++, m_x++) {
+                for (x = posx, m_x=0; m_x<static_cast<int>(m_width); x++, m_x++) {
                     png_byte* ptr = &(row[m_x*4]);
                     /* RGBA: ptr[0], ptr[1], ptr[2], ptr[3] */
-                    if (x < 0 || y < 0 || x >= vinfo->xres || y >= vinfo->yres)
+                    if (x < 0 || y < 0 || x >= static_cast<int>(vinfo->xres) || y >= static_cast<int>(vinfo->yres))
                         continue;
-                    long location = (x+vinfo->xoffset)*(vinfo->bits_per_pixel/8) + (y+vinfo->yoffset)*finfo->line_length;
+                    long location = (x+static_cast<int>(vinfo->xoffset))*(static_cast<int>(vinfo->bits_per_pixel)/8) + (y+static_cast<int>(vinfo->yoffset))*static_cast<int>(finfo->line_length);
                         uint32_t target = *(reinterpret_cast<uint32_t*>(reinterpret_cast<long>(hdc)+location));
                         /* Blend the text color into the background */
                         /* color = alpha * (src - dest) + dest */
-                        uint8_t col_r = (static_cast<float>(ptr[3])/static_cast<float>(0xff))*static_cast<float>(ptr[0]-static_cast<float>((target>>16)&0xff))+((target>>16)&0xff);
-                        uint8_t col_g = (static_cast<float>(ptr[3])/static_cast<float>(0xff))*static_cast<float>(ptr[1]-static_cast<float>((target>>8)&0xff))+((target>>8)&0xff);
-                        uint8_t col_b = (static_cast<float>(ptr[3])/static_cast<float>(0xff))*static_cast<float>(ptr[2]-static_cast<float>(target&0xff))+(target&0xff);
+                        unsigned int col_r = (static_cast<float>(ptr[3])/static_cast<float>(0xff))*static_cast<float>(ptr[0]-static_cast<float>((target>>16)&0xff))+((target>>16)&0xff);
+                        unsigned int col_g = (static_cast<float>(ptr[3])/static_cast<float>(0xff))*static_cast<float>(ptr[1]-static_cast<float>((target>>8)&0xff))+((target>>8)&0xff);
+                        unsigned int col_b = (static_cast<float>(ptr[3])/static_cast<float>(0xff))*static_cast<float>(ptr[2]-static_cast<float>(target&0xff))+(target&0xff);
                         *(reinterpret_cast<uint32_t*>(reinterpret_cast<long>(hdc)+location)) = (col_r<<16)|(col_g<<8)|(col_b);
                 }
             }
@@ -178,7 +178,7 @@ public:
         png_read_update_info(m_png_ptr, m_info_ptr);
 
         m_row_pointers = static_cast<png_bytep*>(malloc(sizeof(png_bytep) * m_height));
-        for (m_y=0; m_y<m_height; m_y++)
+        for (m_y=0; m_y<static_cast<int>(m_height); m_y++)
             m_row_pointers[m_y] = static_cast<png_byte*>(malloc(png_get_rowbytes(m_png_ptr,m_info_ptr)));
 
         png_read_image(m_png_ptr, m_row_pointers);
@@ -222,8 +222,8 @@ public:
         png_get_IHDR(png_ptr, info_ptr, &width, &height, &bit_depth, &color_type, &interlace_type, NULL, NULL);
         png_destroy_read_struct(&png_ptr, &info_ptr, (png_infopp)NULL);
 
-        *x = width;
-        *y = height;
+        *x = static_cast<int>(width);
+        *y = static_cast<int>(height);
 
         fclose(fh);
         return(FH_ERROR_OK);
