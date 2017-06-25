@@ -158,7 +158,9 @@ int main(int argc, char* argv[]) {
 /* Render and draw to the screen*/
 void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, uxmux_container* painter, struct fb_var_screeninfo* vinfo, struct fb_fix_screeninfo* finfo, litehtml::uint_ptr hdcMouse, int x, int y, unsigned char click_ie, bool redraw) {
 		if (redraw) {
-			painter->clear_screen();
+		    /* Clear the screen to white */
+			painter->draw_rect(painter->get_back_buffer(), 0, 0, vinfo->xres, vinfo->yres, litehtml::web_color(0xff, 0xff, 0xff));
+
 			// printf("rendering..\n");
 			doc->render(vinfo->xres);
 			// printf("drawing..\n");
@@ -252,15 +254,15 @@ unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned ch
 	bool y_flag=false, x_flag=false;
 	int x = *x_ret, y = *y_ret;
 
-	#define TARGET_X 800.0
-	#define TARGET_Y 600.0
+	#define TARGET_X 800.0f
+	#define TARGET_Y 600.0f
 
-	#define MX_MIN 184.0
-	#define MX_MAX 65391.0
-	#define MY_MIN 245.0
-	#define MY_MAX 65343.0
-	#define MX_SCL 82.0
-	#define MY_SCL 109.0
+	#define MX_MIN 184.0f
+	#define MX_MAX 65391.0f
+	#define MY_MIN 245.0f
+	#define MY_MAX 65343.0f
+	#define MX_SCL 82.0f
+	#define MY_SCL 109.0f
 
 	/* Initialize file descriptor sets and set timeout */
 	#define fd_ready_select(fd, sec, usec) \
@@ -341,10 +343,10 @@ unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned ch
 	if (y>MY_MAX)y=MY_MAX;
 	if (y<MY_MIN)y=MY_MIN;
 
-	x = static_cast<double>(x-MX_MIN)/(MX_MAX-MX_MIN)*TARGET_X;
+	x = static_cast<float>(x-MX_MIN)/(MX_MAX-MX_MIN)*TARGET_X;
 	if (x>11) *x_ret = x;
 
-	y = static_cast<double>(y-MY_MIN)/(MY_MAX-MY_MIN)*TARGET_Y;
+	y = static_cast<float>(y-MY_MIN)/(MY_MAX-MY_MIN)*TARGET_Y;
 	if (y>7) *y_ret = y;
 
 	return click_ie[0]&(~0x10);

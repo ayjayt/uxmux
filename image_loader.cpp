@@ -1,11 +1,9 @@
 # include "image_loader.h"
 
-image_loader::image_loader() {
+image_loader::image_loader() :
+    m_file_type(none), m_png_ptr(0), m_info_ptr(0), m_row_pointers(0)
+{
     // printf("ctor image_loader\n");
-    m_file_type = none;
-    m_png_ptr = 0;
-    m_info_ptr = 0;
-    m_row_pointers = 0;
 }
 
 image_loader::~image_loader() {
@@ -42,9 +40,9 @@ int image_loader::copy_to_framebuffer(void* hdc, struct fb_fix_screeninfo* finfo
                     uint32_t target = *(reinterpret_cast<uint32_t*>(reinterpret_cast<long>(hdc)+location));
                     /* Blend the text color into the background */
                     /* color = alpha * (src - dest) + dest */
-                    uint8_t col_r = (static_cast<double>(ptr[3])/static_cast<double>(0xff))*static_cast<double>(ptr[0]-static_cast<double>((target>>16)&0xff))+((target>>16)&0xff);
-                    uint8_t col_g = (static_cast<double>(ptr[3])/static_cast<double>(0xff))*static_cast<double>(ptr[1]-static_cast<double>((target>>8)&0xff))+((target>>8)&0xff);
-                    uint8_t col_b = (static_cast<double>(ptr[3])/static_cast<double>(0xff))*static_cast<double>(ptr[2]-static_cast<double>(target&0xff))+(target&0xff);
+                    uint8_t col_r = (static_cast<float>(ptr[3])/static_cast<float>(0xff))*static_cast<float>(ptr[0]-static_cast<float>((target>>16)&0xff))+((target>>16)&0xff);
+                    uint8_t col_g = (static_cast<float>(ptr[3])/static_cast<float>(0xff))*static_cast<float>(ptr[1]-static_cast<float>((target>>8)&0xff))+((target>>8)&0xff);
+                    uint8_t col_b = (static_cast<float>(ptr[3])/static_cast<float>(0xff))*static_cast<float>(ptr[2]-static_cast<float>(target&0xff))+(target&0xff);
                     *(reinterpret_cast<uint32_t*>(reinterpret_cast<long>(hdc)+location)) = (col_r<<16)|(col_g<<8)|(col_b);
             }
         }

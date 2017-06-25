@@ -2,30 +2,25 @@
 
 /* See https://github.com/litehtml/litehtml/wiki/document_container */
 
-uxmux_container::uxmux_container(std::string prefix, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo) {
+uxmux_container::uxmux_container(std::string prefix, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo) :
+    m_finfo(finfo), m_vinfo(vinfo), m_default_font({0, false}), m_cursor(false), m_new_page(""), m_new_page_alt("")
+{
     // printf("ctor uxmux_container\n");
 
     if (strcmp(prefix.c_str(),"")!=0)
         m_directory = prefix+"/";
     else
         m_directory = "";
-    m_finfo = finfo;
-    m_vinfo = vinfo;
     m_back_buffer = static_cast<uint32_t*>(mmap(0, vinfo->yres_virtual * finfo->line_length, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, off_t(0)));
-
-    m_cursor = false;
-    m_new_page = "";
-    m_new_page_alt = "";
 
     /* Setup Font Library */
     FT_Init_FreeType(&m_library);
 
     litehtml::font_metrics fm;
-    m_default_font.font = 0;
-    m_default_font.valid = false;
     create_font(get_default_font_name(), get_default_font_size(), 400, litehtml::font_style(0), 0, &fm);
 
-    clear_screen();
+    /* Clear the screen to white */
+    draw_rect(m_back_buffer, 0, 0, m_vinfo->xres, m_vinfo->yres, litehtml::web_color(0xff, 0xff, 0xff));
 }
 
 uxmux_container::~uxmux_container(void) {
@@ -43,35 +38,6 @@ uxmux_container::~uxmux_container(void) {
         m_fonts.clear();
     }
     FT_Done_FreeType(m_library);
-}
-
-inline uint32_t uxmux_container::pixel_color(uint8_t r, uint8_t g, uint8_t b, struct fb_var_screeninfo *vinfo) {
-    return static_cast<uint32_t>(r<<vinfo->red.offset | g<<vinfo->green.offset | b<<vinfo->blue.offset);
-}
-
-std::string uxmux_container::get_new_page() {
-    // printf("get_new_page\n");
-    if (check_new_page()) {
-        std::string ret(m_new_page.c_str());
-        m_new_page = "";
-        return ret;
-    }
-    return 0;
-}
-
-std::string uxmux_container::get_new_page_alt() {
-    // printf("get_new_page_alt\n");
-    if (check_new_page_alt()) {
-        std::string ret(m_new_page_alt.c_str());
-        m_new_page_alt = "";
-        return ret;
-    }
-    return 0;
-}
-
-void uxmux_container::clear_screen() {
-    /* Clear the screen to white */
-    draw_rect(m_back_buffer, 0, 0, m_vinfo->xres, m_vinfo->yres, litehtml::web_color(0xff, 0xff, 0xff));
 }
 
 void uxmux_container::swap_buffer(litehtml::uint_ptr hdc) {
@@ -112,7 +78,7 @@ void uxmux_container::draw_rect(litehtml::uint_ptr hdc, int xpos, int ypos, int 
             if (x < 0 || y < 0 || x >= m_vinfo->xres || y >= m_vinfo->yres)
                 continue;
             long location = (x+m_vinfo->xoffset)*(m_vinfo->bits_per_pixel/8) + (y+m_vinfo->yoffset)*m_finfo->line_length;
-            *(reinterpret_cast<uint32_t*>(hdc+location)) = pixel_color(color.red, color.green, color.blue, m_vinfo);
+            *(reinterpret_cast<uint32_t*>(hdc+location)) = static_cast<uint32_t>(color.red<<m_vinfo->red.offset | color.green<<m_vinfo->green.offset | color.blue<<m_vinfo->blue.offset);
         }
     }
 }
@@ -240,7 +206,7 @@ litehtml::uint_ptr uxmux_container::create_font(const litehtml::tchar_t* faceNam
 
         /* set up matrix */
         FT_Matrix matrix;
-        // double angle = 0;
+        // float angle = 0;
         matrix.xx = 0x10000L;//(FT_Fixed)(cos(angle) * 0x10000L);
         matrix.xy = 0;//(FT_Fixed)(-sin(angle) * 0x10000L);
         matrix.yx = 0;//(FT_Fixed)(sin(angle) * 0x10000L);
@@ -281,7 +247,7 @@ int uxmux_container::text_width(const litehtml::tchar_t* text, litehtml::uint_pt
 
     /* set up matrix */
     FT_Matrix matrix;
-    // double angle = 0;
+    // float angle = 0;
     matrix.xx = 0x10000L;//(FT_Fixed)(cos(angle) * 0x10000L);
     matrix.xy = 0;//(FT_Fixed)(-sin(angle) * 0x10000L);
     matrix.yx = 0;//(FT_Fixed)(sin(angle) * 0x10000L);
@@ -328,7 +294,7 @@ void uxmux_container::draw_text(litehtml::uint_ptr hdc, const litehtml::tchar_t*
 
     /* set up matrix */
     FT_Matrix matrix;
-    // double angle = 0;
+    // float angle = 0;
     matrix.xx = 0x10000L;//(FT_Fixed)(cos(angle) * 0x10000L);
     matrix.xy = 0;//(FT_Fixed)(-sin(angle) * 0x10000L);
     matrix.yx = 0;//(FT_Fixed)(sin(angle) * 0x10000L);
@@ -370,9 +336,9 @@ void uxmux_container::draw_text(litehtml::uint_ptr hdc, const litehtml::tchar_t*
                     uint32_t target = *(reinterpret_cast<uint32_t*>(reinterpret_cast<long>(hdc)+location));
                     /* Blend the text color into the background */
                     /* color = alpha * (src - dest) + dest */
-                    col_r = (static_cast<double>(col_max)/static_cast<double>(0xff))*static_cast<double>(color.red-static_cast<double>((target>>16)&0xff))+((target>>16)&0xff);
-                    col_g = (static_cast<double>(col_max)/static_cast<double>(0xff))*static_cast<double>(color.green-static_cast<double>((target>>8)&0xff))+((target>>8)&0xff);
-                    col_b = (static_cast<double>(col_max)/static_cast<double>(0xff))*static_cast<double>(color.blue-static_cast<double>(target&0xff))+(target&0xff);
+                    col_r = (static_cast<float>(col_max)/static_cast<float>(0xff))*static_cast<float>(color.red-static_cast<float>((target>>16)&0xff))+((target>>16)&0xff);
+                    col_g = (static_cast<float>(col_max)/static_cast<float>(0xff))*static_cast<float>(color.green-static_cast<float>((target>>8)&0xff))+((target>>8)&0xff);
+                    col_b = (static_cast<float>(col_max)/static_cast<float>(0xff))*static_cast<float>(color.blue-static_cast<float>(target&0xff))+(target&0xff);
                     *(reinterpret_cast<uint32_t*>(reinterpret_cast<long>(hdc)+location)) = (col_r<<16)|(col_g<<8)|(col_b);
                 }
             }

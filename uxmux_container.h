@@ -42,18 +42,33 @@ public:
 	uxmux_container(std::string prefix, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo);
 	~uxmux_container(void);
 
-	inline uint32_t pixel_color(uint8_t r, uint8_t g, uint8_t b, struct fb_var_screeninfo *vinfo);
 	void draw_rect(litehtml::uint_ptr hdc, const litehtml::position& rect, const litehtml::web_color& color);
 	void draw_rect(litehtml::uint_ptr hdc, int xpos, int ypos, int width, int height, const litehtml::web_color& color);
 	void draw_mouse(litehtml::uint_ptr hdc, int xpos, int ypos, unsigned char click);
 	void swap_buffer(litehtml::uint_ptr src_hdc, litehtml::uint_ptr dest_hdc, struct fb_var_screeninfo *vinfo, struct fb_fix_screeninfo *finfo);
 	void swap_buffer(litehtml::uint_ptr hdc);
-	void clear_screen();
 	void load_font(litehtml::uint_ptr hFont);
 	void load_font(font_structure_t font_struct);
 
-	std::string get_new_page();
-	std::string get_new_page_alt();
+	std::string get_new_page() {
+	    // printf("get_new_page\n");
+	    if (m_new_page != "") {
+	        std::string ret(m_new_page.c_str());
+	        m_new_page = "";
+	        return ret;
+	    }
+	    return 0;
+	}
+
+	std::string get_new_page_alt() {
+	    // printf("get_new_page_alt\n");
+	    if (m_new_page_alt != "") {
+	        std::string ret(m_new_page_alt.c_str());
+	        m_new_page_alt = "";
+	        return ret;
+	    }
+	    return 0;
+	}
 
 	bool check_new_page(){return m_new_page != "";}
 	bool check_new_page_alt(){return m_new_page_alt != "";}
