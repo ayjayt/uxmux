@@ -1,3 +1,6 @@
+#ifndef IMAGE_LOADER_H
+#define IMAGE_LOADER_H
+
 #include <linux/fb.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -42,3 +45,5 @@ public:
     int copy_to_framebuffer(void* hdc, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo, int posx, int posy);
     void destroy();
 };
+
+#endif

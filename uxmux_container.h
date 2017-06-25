@@ -1,3 +1,6 @@
+#ifndef UXMUX_CONTAINER_H
+#define UXMUX_CONTAINER_H
+
 #include <linux/fb.h>
 #include <stdint.h>
 #include <sys/mman.h>
@@ -21,7 +24,7 @@ private:
 
 	std::unordered_map<std::string, font_structure_t> m_fonts;
 
-	FT_Library m_library;
+	FT_Library* m_library;
 	FT_Face m_face;
 	FT_GlyphSlot m_slot;
 
@@ -36,12 +39,12 @@ private:
 
 public:
 	// uxmux_container(void);
-	uxmux_container(std::string prefix, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo, FT_Library library);
+	uxmux_container(std::string prefix, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo, FT_Library* library);
 	~uxmux_container(void);
 
 	inline uint32_t pixel_color(uint8_t r, uint8_t g, uint8_t b, struct fb_var_screeninfo *vinfo);
-	void draw_rect(litehtml::uint_ptr hdc, const litehtml::position& rect, litehtml::web_color color);
-	void draw_rect(litehtml::uint_ptr hdc, int xpos, int ypos, int width, int height, litehtml::web_color color);
+	void draw_rect(litehtml::uint_ptr hdc, const litehtml::position& rect, const litehtml::web_color& color);
+	void draw_rect(litehtml::uint_ptr hdc, int xpos, int ypos, int width, int height, const litehtml::web_color& color);
 	void draw_mouse(litehtml::uint_ptr hdc, int xpos, int ypos, unsigned char click);
 	void swap_buffer(litehtml::uint_ptr src_hdc, litehtml::uint_ptr dest_hdc, struct fb_var_screeninfo *vinfo, struct fb_fix_screeninfo *finfo);
 	void swap_buffer(litehtml::uint_ptr hdc);
@@ -86,3 +89,5 @@ public:
 	void get_media_features(litehtml::media_features& media) const override;
 	void get_language(litehtml::tstring& language,litehtml::tstring& culture) const override;
 };
+
+#endif

@@ -22,7 +22,7 @@
 #define FRAMEBUFFER_FILE "/dev/fb0"
 #define TTY_FILE "/dev/tty0"
 
-void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, uxmux_container painter, struct fb_var_screeninfo vinfo, struct fb_fix_screeninfo finfo, litehtml::uint_ptr hdcMouse, int x, int y, unsigned char click_ie, bool redraw);
+void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, uxmux_container* painter, struct fb_var_screeninfo* vinfo, struct fb_fix_screeninfo* finfo, litehtml::uint_ptr hdcMouse, int x, int y, unsigned char click_ie, bool redraw);
 bool update(litehtml::document::ptr doc, unsigned char click_ie, int x, int y, bool* redraw, bool* is_clicked);
 litehtml::uint_ptr get_drawable(struct fb_fix_screeninfo *_finfo, struct fb_var_screeninfo *_vinfo);
 unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned char last_click);
@@ -45,20 +45,20 @@ int main(int argc, char* argv[]) {
 		}
 
 		/* Read the given file and print its contents to the screen */
-		printf("Reading file %s as HTML:\n\n", argv[1]);
+		// printf("Reading file %s as HTML:\n\n", argv[1]);
 
-		std::string path = argv[1];
-		std::string prefix = "";
-		if (std::count(path.begin(), path.end(), '/') > 0)
-			prefix = path.substr(0, path.find_last_of('/'));
+		std::string prefix = argv[1];
+		if (std::count(prefix.begin(), prefix.end(), '/') > 0)
+			prefix = prefix.substr(0, prefix.find_last_of('/'));
+		else prefix = "";
 
 		std::ifstream t(argv[1]);
 		std::stringstream buffer;
 		buffer << t.rdbuf();
-		printf("%s\n", buffer.str().c_str());
+		// printf("%s\n", buffer.str().c_str());
 
 		/* Load the master.css file */
-		printf("Loading file %s as Master CSS\n\n", argv[2]);
+		// printf("Loading file %s as Master CSS\n\n", argv[2]);
 
 		std::ifstream t2(argv[2]);
 		std::stringstream buffer2;
@@ -74,7 +74,7 @@ int main(int argc, char* argv[]) {
 		/* Setup Font Library */
 		FT_Init_FreeType(&font_library);
 
-		uxmux_container painter(prefix, &finfo, &vinfo, font_library);
+		uxmux_container painter(prefix, &finfo, &vinfo, &font_library);
 		litehtml::context context;
 
 		/* Start litehtml rendering
@@ -97,8 +97,9 @@ int main(int argc, char* argv[]) {
 			while (val&0x2||val==0)val=handle_mouse(mcf, mmf, &x, &y, 0);
 		} else {
 			printf("Press enter to start. (Then again to exit.)\n");
+			int c;
 			while (1) {
-				int c = getchar();
+				c = getchar();
 				if (isspace(c) || c == EOF)
 					break;
 			}
@@ -111,7 +112,7 @@ int main(int argc, char* argv[]) {
 
 		/* Main program loop */
 		while (!done) {
-			render(hdc, doc, painter, vinfo, finfo, hdcMouse, x, y, click_ie, redraw);
+			render(hdc, doc, &painter, &vinfo, &finfo, hdcMouse, x, y, click_ie, redraw);
 
 			click_ie = handle_mouse(mcf, mmf, &x, &y, click_ie);
 			if(painter.check_new_page()) {
@@ -122,7 +123,7 @@ int main(int argc, char* argv[]) {
 				if (t3) {
 					std::stringstream buffer3;
 					buffer3 << t3.rdbuf();
-					// printf("%s\n", buffer4.str().c_str());
+					// printf("%s\n", buffer3.str().c_str());
 
 					/* Buggy when removing fonts by destructors, needs manual clean */
 					painter.clear_fonts();
@@ -130,14 +131,13 @@ int main(int argc, char* argv[]) {
 					if (std::count(page.begin(), page.end(), '/') > 0)
 						page = page.substr(0, page.find_last_of('/'));
 					else page = "";
-					painter = uxmux_container(page, &finfo, &vinfo, font_library);
+					painter = uxmux_container(page, &finfo, &vinfo, &font_library);
 					doc = litehtml::document::createFromString(buffer3.str().c_str(), &painter, &context);
 					continue;
 				} else if (painter.check_new_page_alt()) {
 					page = painter.get_directory()+painter.get_new_page_alt();
 					// printf("alt_page: %s\n", page.c_str());
 
-					/* TODO: Yeah this naming pattern is getting bad ... I'm not focused on such optimizations right now though */
 					std::ifstream t4(page.c_str());
 					if (t4) {
 						std::stringstream buffer4;
@@ -150,7 +150,7 @@ int main(int argc, char* argv[]) {
 						if (std::count(page.begin(), page.end(), '/') > 0)
 							page = page.substr(0, page.find_last_of('/'));
 						else page = "";
-						painter = uxmux_container(page, &finfo, &vinfo, font_library);
+						painter = uxmux_container(page, &finfo, &vinfo, &font_library);
 						doc = litehtml::document::createFromString(buffer4.str().c_str(), &painter, &context);
 						continue;
 					}
@@ -171,26 +171,26 @@ int main(int argc, char* argv[]) {
 		FT_Done_FreeType(font_library);
 	}
 
-	printf("Completed.\n");
+	// printf("Completed.\n");
 	return 0;
 }
 
 /* Render and draw to the screen*/
-void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, uxmux_container painter, struct fb_var_screeninfo vinfo, struct fb_fix_screeninfo finfo, litehtml::uint_ptr hdcMouse, int x, int y, unsigned char click_ie, bool redraw) {
+void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, uxmux_container* painter, struct fb_var_screeninfo* vinfo, struct fb_fix_screeninfo* finfo, litehtml::uint_ptr hdcMouse, int x, int y, unsigned char click_ie, bool redraw) {
 		if (redraw) {
-			painter.clear_screen();
+			painter->clear_screen();
 			// printf("rendering..\n");
-			doc->render(vinfo.xres);
+			doc->render(vinfo->xres);
 			// printf("drawing..\n");
-			doc->draw(painter.get_back_buffer(),0,0,0);
+			doc->draw(painter->get_back_buffer(),0,0,0);
 		}
 
 		/* Render mouse on separate layer */
-		painter.swap_buffer(hdcMouse);
-		painter.draw_mouse(hdcMouse, x, y, click_ie);
+		painter->swap_buffer(hdcMouse);
+		painter->draw_mouse(hdcMouse, x, y, click_ie);
 
 		/* Copy buffer layer to screen layer */
-		painter.swap_buffer(hdcMouse, hdc, &vinfo, &finfo);
+		painter->swap_buffer(hdcMouse, hdc, vinfo, finfo);
 
 		/* Hold the rendered screen for 2 seconds*/
 		// struct timespec tim, tim2;
