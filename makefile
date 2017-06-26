@@ -3,14 +3,21 @@ CWARNFLAGS = -Wall -Wextra -Wpedantic -Wchkp -Wformat=2 -Wcast-align -Wcast-qual
 CFLAGS = -fno-rtti -fno-builtin -Os -ffreestanding
 CFLAGS += `pkg-config --cflags freetype2` `pkg-config --cflags libpng` -isystem lib/litehtml/include/
 
-LDFLAGS = -s -v -nodefaultlibs -lc -lstdc++ -lgcc_s -Wl,-Map=build/uxmux.map,--cref,-t
+LDFLAGS = -s -v -nodefaultlibs -lc -ldl -lstdc++ -lgcc_s -Wl,-Map=build/uxmux.map,--cref,-t
 LDFLAGS += -Llib/litehtml/ -llitehtml `pkg-config --libs freetype2` `pkg-config --libs libpng`
 
 all:
 	g++ $(CWARNFLAGS) $(CFLAGS) -c main.cpp
 	g++ -o build/uxmux main.o $(LDFLAGS)
 
+extra:
+	gcc -fpie -c extra.c -o extra.o
+	gcc -o extra.elf -Wl,-pie,-E extra.o
+
+clean_extra:
+	rm extra.elf
+
 clean:
-	-rm build/uxmux
-	-rm build/uxmux.map
-	-rm *.o
+	rm build/uxmux
+	rm build/uxmux.map
+	rm *.o

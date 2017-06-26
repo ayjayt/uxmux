@@ -2,6 +2,7 @@
   <head>
     <title>Input Application</title>
     <link rel="stylesheet" href="../stylesheets/header.css">
+    <link type="binary/elf" href="../../extra.elf">
   </head>
   <body>
   <table><tr>
@@ -39,7 +40,15 @@
     </ul>
   </div>
 
-  <p><br><br>Nothing to see here.</p>
+  <p><br><br><h1>External Elf Support:</h1>
+  <p>To use external function, use the html tag: <code>&lt;link type="binary/elf" href="FILE_NAME.elf"></code><br>then provide the anchor: <code>&lt;a href="FILE_NAME.elf" target="FUNCTION_NAME_FROM_ELF"></code></p>
+  <p><br>Try the following examples.</p>
+  <ul>
+  <li><a href="../../extra.elf" target="func1">func1</a></li>
+  <li><a href="../../extra.elf" target="func2">func2</a></li>
+  <li><a href="../../extra.elf" target="func3">func3</a></li>
+  <li><a href="../../extra.elf" target="func4">func4</a></li>
+  <ul>
 
   </body>
 </html>
