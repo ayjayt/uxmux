@@ -1,7 +1,16 @@
-CFLAGS = -Wall -Wextra -Wpedantic -Os -Wchkp -Wformat=2 -Wcast-align -Wcast-qual -Wctor-dtor-privacy -Wdisabled-optimization -Wlogical-op -Wmissing-declarations -Wmissing-include-dirs -Wnoexcept -Wold-style-cast -Woverloaded-virtual -Wredundant-decls -Wshadow -Wsign-conversion -Wsign-promo -Wstrict-null-sentinel -Wstrict-overflow=5 -Wswitch-default -Wundef -Wno-unused-parameter -fno-rtti
+CWARNFLAGS = -Wall -Wextra -Wpedantic -Wchkp -Wformat=2 -Wcast-align -Wcast-qual -Wctor-dtor-privacy -Wdisabled-optimization -Wlogical-op -Wmissing-declarations -Wmissing-include-dirs -Wnoexcept -Wold-style-cast -Woverloaded-virtual -Wredundant-decls -Wshadow -Wsign-conversion -Wsign-promo -Wstrict-null-sentinel -Wstrict-overflow=5 -Wswitch-default -Wundef -Wno-unused-parameter
+
+CFLAGS = -fno-rtti -fno-builtin -Os -ffreestanding
 CFLAGS += `pkg-config --cflags freetype2` `pkg-config --cflags libpng` -isystem lib/litehtml/include/
-LDFLAGS = -Llib/litehtml/ -llitehtml `pkg-config --libs freetype2` `pkg-config --libs libpng`
+
+LDFLAGS = -s -v -nodefaultlibs -lc -lstdc++ -lgcc_s -Wl,-Map=build/uxmux.map,--cref,-t
+LDFLAGS += -Llib/litehtml/ -llitehtml `pkg-config --libs freetype2` `pkg-config --libs libpng`
 
 all:
-	g++ $(CFLAGS) -c main.cpp
+	g++ $(CWARNFLAGS) $(CFLAGS) -c main.cpp
 	g++ -o build/uxmux main.o $(LDFLAGS)
+
+clean:
+	-rm build/uxmux
+	-rm build/uxmux.map
+	-rm *.o

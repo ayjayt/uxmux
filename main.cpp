@@ -4,7 +4,6 @@
 
 /* Uncomment to easily disable the graphics mode switching*/
 // #define UXMUX_SAFE_MODE 1
-
 int main(int argc, char* argv[]) {
 	if (argc!=3) {
 		printf("usage: %s <html_file> <master_css>\n", argv[0]);
