@@ -19,7 +19,8 @@ libpng version 1.6.28                         <br/>
     `set(CMAKE_C_FLAGS_RELEASE "-std=c99 -fno-rtti -fno-builtin -Os")`
 3. Compile litehtml from "./lib/litehtml/" using `cmake .` then `make`
 4. Compile project from "." using `make`
-5. Run the compiled program from "./build" using `./uxmux <html_file> <master_css>`
+5. Compile external .elf (which can be loaded into application using HTML) from "." using `make extra`
+6. Run the compiled program from "./build" using `./uxmux <html_file> <master_css>`
 
 ### Oliver:
 
