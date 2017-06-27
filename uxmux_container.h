@@ -47,12 +47,14 @@ private:
 	int x_start_scroll_pos, y_start_scroll_pos, x_start_click_pos, y_start_click_pos;
 	litehtml::position x_scroll_rect, y_scroll_rect;
 
+#define DEFAULT_SCROLLBAR_SIZE 0
+
 public:
 	uxmux_container(std::string prefix, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo, int x, int y) :
 		m_handle(0), m_finfo(finfo), m_vinfo(vinfo), m_default_font({0, false}), m_cursor(false), m_new_page(""), m_new_page_alt(""), m_directory((strcmp(prefix.c_str(),"")!=0)?(prefix+"/"):""),
 		m_face(0), m_slot(0), m_back_buffer(static_cast<uint32_t*>(mmap(0, vinfo->yres_virtual * finfo->line_length, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, off_t(0)))), m_client_width(static_cast<int>(vinfo->xres)),
-		m_client_height(static_cast<int>(vinfo->yres)), x_scroll(x), y_scroll(y), x_scrollbar_size(10), y_scrollbar_size(10), x_scrollable(false), y_scrollable(false), m_scroll_cursor(false), x_scroll_clicked(0), y_scroll_clicked(0),
-		x_start_scroll_pos(0), y_start_scroll_pos(0), x_start_click_pos(0), y_start_click_pos(0), x_scroll_rect({2,static_cast<int>(vinfo->yres)-8,vinfo->xres-12,6}), y_scroll_rect{vinfo->xres-8,2,6,static_cast<int>(vinfo->yres)-12}
+		m_client_height(static_cast<int>(vinfo->yres)), x_scroll(x), y_scroll(y), x_scrollbar_size(DEFAULT_SCROLLBAR_SIZE), y_scrollbar_size(DEFAULT_SCROLLBAR_SIZE), x_scrollable(true), y_scrollable(true), m_scroll_cursor(false), x_scroll_clicked(0), y_scroll_clicked(0),
+		x_start_scroll_pos(0), y_start_scroll_pos(0), x_start_click_pos(0), y_start_click_pos(0), x_scroll_rect({2,static_cast<int>(vinfo->yres)-DEFAULT_SCROLLBAR_SIZE+2,vinfo->xres-DEFAULT_SCROLLBAR_SIZE-2,DEFAULT_SCROLLBAR_SIZE-4}), y_scroll_rect{vinfo->xres-DEFAULT_SCROLLBAR_SIZE+2,2,DEFAULT_SCROLLBAR_SIZE-4,static_cast<int>(vinfo->yres)-DEFAULT_SCROLLBAR_SIZE-2}
 	{
 		// printf("ctor uxmux_container\n");
 
@@ -350,6 +352,7 @@ public:
 			}
 
 			if (!m_face) {
+				/* i.e. There will be no rendering of text linked to this font */
 				printf("CRITICAL FAIL: while loading fonts\n");
 				return 0;
 			}
@@ -612,7 +615,7 @@ public:
 
 	void link(const std::shared_ptr<litehtml::document>& doc, const litehtml::element::ptr& el) {
 		// printf("link: rel=%s, type=%s, href=%s\n", el->get_attr("rel"), el->get_attr("type"), el->get_attr("href"));
-		if (!m_handle && strcmp(el->get_attr("type"), "binary/elf")==0){
+		if (!m_handle && el->get_attr("type") && strcmp(el->get_attr("type"), "binary/elf")==0){
 			m_handle = dlopen((m_directory+el->get_attr("href")).c_str(), RTLD_LAZY);
 			if (!m_handle) {
 				printf("%s\n", dlerror());
@@ -649,7 +652,7 @@ public:
 	}
 
 	void transform_text(litehtml::tstring& text, litehtml::text_transform tt) {
-		printf("transform_text: %s\n", text.c_str());
+		// printf("transform_text: %s\n", text.c_str());
 	}
 
 	void import_css(litehtml::tstring& text, const litehtml::tstring& url, litehtml::tstring& baseurl) {
