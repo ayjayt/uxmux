@@ -25,7 +25,7 @@
 
 unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned char last_click);
 litehtml::uint_ptr get_drawable(struct fb_fix_screeninfo *_finfo, struct fb_var_screeninfo *_vinfo);
-bool update(litehtml::document::ptr doc, unsigned char click_ie, int x, int y, bool* redraw, bool* is_clicked);
+bool update(litehtml::document::ptr doc, uxmux_container* painter, unsigned char click_ie, int x, int y, bool* redraw, bool* is_clicked);
 void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, uxmux_container* painter, struct fb_var_screeninfo* vinfo, struct fb_fix_screeninfo* finfo, litehtml::uint_ptr hdcMouse, int x, int y, unsigned char click_ie, bool redraw);
 
 /* Render and draw to the screen*/
@@ -37,11 +37,14 @@ void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, uxmux_container
 			// printf("rendering..\n");
 			doc->render(static_cast<int>(vinfo->xres));
 			// printf("drawing..\n");
-			doc->draw(painter->get_back_buffer(),0,0,0);
+			printf("   xscroll=%d, yscroll=%d\n", painter->get_x_scroll(), painter->get_y_scroll());
+			litehtml::position clip({0,0,vinfo->xres,vinfo->yres});
+			doc->draw(painter->get_back_buffer(),painter->get_x_scroll(),painter->get_y_scroll(),&clip);
 		}
 
 		/* Render mouse on separate layer */
 		painter->swap_buffer(painter->get_back_buffer(), hdcMouse, vinfo, finfo);
+		painter->draw_scrollbars(hdcMouse);
 		painter->draw_mouse(hdcMouse, x, y, click_ie);
 
 		/* Copy buffer layer to screen layer */
@@ -65,17 +68,18 @@ void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, uxmux_container
 }
 
 /* Returns true when ready to stop program */
-bool update(litehtml::document::ptr doc, unsigned char click_ie, int x, int y, bool* redraw, bool* is_clicked) {
+bool update(litehtml::document::ptr doc, uxmux_container* painter, unsigned char click_ie, int x, int y, bool* redraw, bool* is_clicked) {
 	if (click_ie&0x10) return true;
 
 	litehtml::position::vector redraw_box;
-	*redraw = doc->on_mouse_over(x, y, /*client_x*/ x, /*client_y*/ y, redraw_box);
+	*redraw = painter->update_scrollbars(doc, x, y, click_ie);
+	*redraw |= doc->on_mouse_over(x-painter->get_x_scroll(), y-painter->get_y_scroll(), /*client_x*/x-painter->get_x_scroll(), /*client_y*/y-painter->get_y_scroll(), redraw_box);
 	if (click_ie&0x1) {
 		*is_clicked=true;
-		*redraw |= doc->on_lbutton_down(x, y, /*client_x*/ x, /*client_y*/ y, redraw_box);
+		*redraw |= doc->on_lbutton_down(x-painter->get_x_scroll(), y-painter->get_y_scroll(), /*client_x*/x-painter->get_x_scroll(), /*client_y*/y-painter->get_y_scroll(), redraw_box);
 	} else if (*is_clicked) {
 		*is_clicked = false;
-		*redraw |= doc->on_lbutton_up(x, y, /*client_x*/ x, /*client_y*/ y, redraw_box);
+		*redraw |= doc->on_lbutton_up(x-painter->get_x_scroll(), y-painter->get_y_scroll(), /*client_x*/x-painter->get_x_scroll(), /*client_y*/y-painter->get_y_scroll(), redraw_box);
 	}
 	// *redraw |= doc->on_mouse_leave(redraw_box);
 	return click_ie&0x2;

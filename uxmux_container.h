@@ -7,6 +7,7 @@
 #include <unordered_map>
 #include <fstream>
 #include <dlfcn.h>
+#include <exception>
 
 #include "litehtml.h"
 #include "image_loader.h"
@@ -38,11 +39,20 @@ private:
 	FT_GlyphSlot m_slot;
 
 	uint32_t* m_back_buffer;
+	int m_client_width, m_client_height;
+
+	int x_scroll, y_scroll, x_scrollbar_size, y_scrollbar_size;
+	bool x_scrollable, y_scrollable, m_scroll_cursor;
+	int x_scroll_clicked, y_scroll_clicked;
+	int x_start_scroll_pos, y_start_scroll_pos, x_start_click_pos, y_start_click_pos;
+	litehtml::position x_scroll_rect, y_scroll_rect;
 
 public:
-	uxmux_container(std::string prefix, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo) :
+	uxmux_container(std::string prefix, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo, int x, int y) :
 		m_handle(0), m_finfo(finfo), m_vinfo(vinfo), m_default_font({0, false}), m_cursor(false), m_new_page(""), m_new_page_alt(""), m_directory((strcmp(prefix.c_str(),"")!=0)?(prefix+"/"):""),
-		m_face(0), m_slot(0), m_back_buffer(static_cast<uint32_t*>(mmap(0, vinfo->yres_virtual * finfo->line_length, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, off_t(0))))
+		m_face(0), m_slot(0), m_back_buffer(static_cast<uint32_t*>(mmap(0, vinfo->yres_virtual * finfo->line_length, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, off_t(0)))), m_client_width(static_cast<int>(vinfo->xres)),
+		m_client_height(static_cast<int>(vinfo->yres)), x_scroll(x), y_scroll(y), x_scrollbar_size(10), y_scrollbar_size(10), x_scrollable(false), y_scrollable(false), m_scroll_cursor(false), x_scroll_clicked(0), y_scroll_clicked(0),
+		x_start_scroll_pos(0), y_start_scroll_pos(0), x_start_click_pos(0), y_start_click_pos(0), x_scroll_rect({2,static_cast<int>(vinfo->yres)-8,vinfo->xres-12,6}), y_scroll_rect{vinfo->xres-8,2,6,static_cast<int>(vinfo->yres)-12}
 	{
 		// printf("ctor uxmux_container\n");
 
@@ -81,13 +91,103 @@ public:
 
 	void draw_mouse(litehtml::uint_ptr hdc, int xpos, int ypos, unsigned char click) {
 		// printf("draw_mouse, at (%d, %d)\n", xpos, ypos);
-		if (m_cursor) {
+		if (m_cursor || m_scroll_cursor) {
 			draw_rect(hdc, xpos-1, ypos-4, 3, 9, click&0x4?0xff:0, click&0x2?0xff:0, click&0x1?0xff:0);
 			draw_rect(hdc, xpos-4, ypos-1, 9, 3, click&0x4?0xff:0, click&0x2?0xff:0, click&0x1?0xff:0);
 		} else {
 			draw_rect(hdc, xpos-1, ypos-2, 3, 5, click&0x4?0xff:0, click&0x2?0xff:0, click&0x1?0xff:0);
 			draw_rect(hdc, xpos-2, ypos-1, 5, 3, click&0x4?0xff:0, click&0x2?0xff:0, click&0x1?0xff:0);
 		}
+	}
+
+	void draw_scrollbars(litehtml::uint_ptr hdc) {
+		if (y_scrollable) {
+			draw_rect(hdc, static_cast<int>(m_vinfo->xres) - y_scrollbar_size, 0, y_scrollbar_size, static_cast<int>(m_vinfo->yres), 0xaa, 0xaa, 0xaa);
+			draw_rect(hdc, y_scroll_rect.x, y_scroll_rect.y, y_scroll_rect.width, y_scroll_rect.height, 0xdd, 0xdd, 0xdd);
+		}
+		if (x_scrollable) {
+			draw_rect(hdc, 0, static_cast<int>(m_vinfo->yres) - x_scrollbar_size, static_cast<int>(m_vinfo->xres), x_scrollbar_size, 0xaa, 0xaa, 0xaa);
+			draw_rect(hdc, x_scroll_rect.x, x_scroll_rect.y, x_scroll_rect.width, x_scroll_rect.height, 0xdd, 0xdd, 0xdd);
+		}
+	}
+
+	#define isinside(xpos, ypos, rect) \
+		(xpos>rect.x && xpos<rect.x+static_cast<int>(rect.width) && \
+			ypos>rect.y && ypos<rect.y+static_cast<int>(rect.height))
+
+	bool update_scrollbars(litehtml::document::ptr doc, int xpos, int ypos, unsigned char click) {
+		bool ret = false;
+		if (y_scrollable && !(x_scroll_clicked&0x1) && !isinside(xpos, ypos, x_scroll_rect) || y_scroll_clicked&0x3) {
+			y_scroll_rect.height = static_cast<float>(static_cast<int>(m_vinfo->yres)-(x_scrollable?x_scrollbar_size:0)) / static_cast<float>(doc->height()) * (static_cast<float>(m_vinfo->yres)-static_cast<float>(x_scrollable?x_scrollbar_size:0));
+			if (isinside(xpos, ypos, y_scroll_rect) && !y_scroll_clicked || y_scroll_clicked&0x1)
+				m_scroll_cursor = true;
+			else
+				m_scroll_cursor = false;
+			if (m_scroll_cursor && click&0x1 || !m_cursor && click&0x1) {
+				if (!y_scroll_clicked) {
+					y_scroll_clicked = m_scroll_cursor?0x1:0x2;
+					y_start_click_pos = ypos;
+					y_start_scroll_pos = m_scroll_cursor?y_scroll_rect.y:y_scroll;
+				}
+				if (y_scroll_clicked&0x2) {
+					y_scroll = y_start_scroll_pos - y_start_click_pos + ypos;
+					y_scroll_rect.y = -static_cast<float>(y_scroll)*static_cast<float>(static_cast<int>(m_vinfo->yres)-(x_scrollable?x_scrollbar_size:0))/static_cast<float>(doc->height());
+					if (y_scroll_rect.y > (static_cast<int>(m_vinfo->yres)-(x_scrollable?x_scrollbar_size:0)) - static_cast<int>(y_scroll_rect.height)) {
+					    y_scroll_rect.y = (static_cast<int>(m_vinfo->yres)-(x_scrollable?x_scrollbar_size:0) - static_cast<int>(y_scroll_rect.height));
+						y_scroll = -(static_cast<float>(y_scroll_rect.y) / static_cast<float>(static_cast<int>(m_vinfo->yres)-(x_scrollable?x_scrollbar_size:0))) * static_cast<float>(doc->height());
+					}
+					if (y_scroll_rect.y < 2) {
+						y_scroll_rect.y = 2;
+						y_scroll = -(static_cast<float>(y_scroll_rect.y-2) / static_cast<float>(static_cast<int>(m_vinfo->yres)-(x_scrollable?x_scrollbar_size:0)-2)) * static_cast<float>(doc->height());
+					}
+				} else {
+					y_scroll_rect.y = y_start_scroll_pos - y_start_click_pos + ypos;
+					if (y_scroll_rect.y > (static_cast<int>(m_vinfo->yres)-(x_scrollable?x_scrollbar_size:0)) - static_cast<int>(y_scroll_rect.height))
+					    y_scroll_rect.y = (static_cast<int>(m_vinfo->yres)-(x_scrollable?x_scrollbar_size:0) - static_cast<int>(y_scroll_rect.height));
+					if (y_scroll_rect.y < 2)
+						y_scroll_rect.y = 2;
+					y_scroll = -(static_cast<float>(y_scroll_rect.y-2) / static_cast<float>(static_cast<int>(m_vinfo->yres)-(x_scrollable?x_scrollbar_size:0)-2)) * static_cast<float>(doc->height());
+				}
+				ret = true;
+			} else
+				y_scroll_clicked = 0;
+		}
+		if (x_scrollable && !(y_scroll_clicked&0x1)) {
+			x_scroll_rect.width = static_cast<float>(static_cast<int>(m_vinfo->xres)-(y_scrollable?y_scrollbar_size:0)) / static_cast<float>(doc->width()) * (static_cast<float>(m_vinfo->xres)-static_cast<float>(y_scrollable?y_scrollbar_size:0));
+			if (isinside(xpos, ypos, x_scroll_rect) && !x_scroll_clicked || x_scroll_clicked&0x1 || isinside(xpos, ypos, y_scroll_rect) && !x_scroll_clicked && !(click&0x1))
+				m_scroll_cursor = true;
+			else
+				m_scroll_cursor = false;
+			if (m_scroll_cursor && click&0x1 || !m_cursor && click&0x1) {
+				if (!x_scroll_clicked) {
+					x_scroll_clicked = m_scroll_cursor?0x1:0x2;
+					x_start_click_pos = xpos;
+					x_start_scroll_pos = m_scroll_cursor?x_scroll_rect.x:x_scroll;
+				}
+				if (x_scroll_clicked&0x2) {
+					x_scroll = x_start_scroll_pos - x_start_click_pos + xpos;
+					x_scroll_rect.x = -static_cast<float>(x_scroll)*static_cast<float>(static_cast<int>(m_vinfo->xres)-(y_scrollable?y_scrollbar_size:0))/static_cast<float>(doc->width());
+					if (x_scroll_rect.x > (static_cast<int>(m_vinfo->xres)-(y_scrollable?y_scrollbar_size:0)) - static_cast<int>(x_scroll_rect.width)) {
+					    x_scroll_rect.x = (static_cast<int>(m_vinfo->xres)-(y_scrollable?y_scrollbar_size:0) - static_cast<int>(x_scroll_rect.width));
+						x_scroll = -(static_cast<float>(x_scroll_rect.x) / static_cast<float>(static_cast<int>(m_vinfo->xres)-(y_scrollable?y_scrollbar_size:0))) * static_cast<float>(doc->width());
+					}
+					if (x_scroll_rect.x < 2) {
+						x_scroll_rect.x = 2;
+						x_scroll = -(static_cast<float>(x_scroll_rect.x-2) / static_cast<float>(static_cast<int>(m_vinfo->xres)-(y_scrollable?y_scrollbar_size:0)-2)) * static_cast<float>(doc->width());
+					}
+				} else {
+					x_scroll_rect.x = x_start_scroll_pos - x_start_click_pos + xpos;
+					if (x_scroll_rect.x > (static_cast<int>(m_vinfo->xres)-(y_scrollable?y_scrollbar_size:0)) - static_cast<int>(x_scroll_rect.width))
+					    x_scroll_rect.x = (static_cast<int>(m_vinfo->xres)-(y_scrollable?y_scrollbar_size:0) - static_cast<int>(x_scroll_rect.width));
+					if (x_scroll_rect.x < 2)
+						x_scroll_rect.x = 2;
+					x_scroll = -(static_cast<float>(x_scroll_rect.x-2) / static_cast<float>(static_cast<int>(m_vinfo->xres)-(y_scrollable?y_scrollbar_size:0)-2)) * static_cast<float>(doc->width());
+				}
+				return true;
+			} else
+				x_scroll_clicked = 0;
+		}
+		return ret;
 	}
 
 	void draw_rect(litehtml::uint_ptr hdc, const litehtml::position& rect, unsigned char red, unsigned char green, unsigned char blue) {
@@ -148,6 +248,8 @@ public:
 	bool check_new_page_alt() { return m_new_page_alt != ""; }
 	uint32_t* get_back_buffer() { return m_back_buffer; }
 	std::string get_directory() { return m_directory; }
+	int get_x_scroll() { return x_scroll; }
+	int get_y_scroll() { return y_scroll; }
 
 	/* From abstract class "litehtml::document_container" in "litehtml/src/html.h"
 	   see also: https://github.com/litehtml/litehtml/wiki/document_container */
@@ -509,7 +611,7 @@ public:
 	}
 
 	void link(const std::shared_ptr<litehtml::document>& doc, const litehtml::element::ptr& el) {
-		printf("link: rel=%s, type=%s, href=%s\n", el->get_attr("rel"), el->get_attr("type"), el->get_attr("href"));
+		// printf("link: rel=%s, type=%s, href=%s\n", el->get_attr("rel"), el->get_attr("type"), el->get_attr("href"));
 		if (!m_handle && strcmp(el->get_attr("type"), "binary/elf")==0){
 			m_handle = dlopen((m_directory+el->get_attr("href")).c_str(), RTLD_LAZY);
 			if (!m_handle) {
@@ -542,7 +644,7 @@ public:
 		// printf("set_cursor: %s\n", cursor);
 		if (strcmp(cursor, "auto") != 0)
 			m_cursor = true;
-		else
+		else if (!m_scroll_cursor)
 			m_cursor = false;
 	}
 
@@ -575,8 +677,8 @@ public:
 		// printf("get_client_rect (%d, %d)\n", m_vinfo->xres, m_vinfo->yres);
 		client.x = 0;
 		client.y = 0;
-		client.width = static_cast<int>(m_vinfo->xres);
-		client.height = static_cast<int>(m_vinfo->yres);
+		client.width = m_client_width - (y_scrollable?y_scrollbar_size:0);
+		client.height = m_client_height - (x_scrollable?x_scrollbar_size:0);
 	}
 
 	std::shared_ptr<litehtml::element> create_element(const litehtml::tchar_t* tag_name, const litehtml::string_map& attributes, const std::shared_ptr<litehtml::document>& doc) {
@@ -588,6 +690,47 @@ public:
 			for (it=attributes.begin(); it!=attributes.end(); ++it) {
 				// printf("   set_attr: %s=%s\n", it->first.c_str(), it->second.c_str());
 				element.set_attr(it->first.c_str(), it->second.c_str());
+				if (strcmp(tag_name, "meta")==0) {
+					if (it->first=="client-width") {
+						try {
+							m_client_width = std::stoi(it->second);
+						} catch (std::exception e) {
+							m_client_width = static_cast<int>(m_vinfo->xres);
+						}
+					} else if (it->first=="client-height") {
+						try {
+							m_client_height = std::stoi(it->second);
+						} catch (std::exception e) {
+							m_client_height = static_cast<int>(m_vinfo->yres);
+						}
+					} else if (it->first=="vertical-scroll") {
+						y_scrollable = (it->second=="yes" || it->second=="true");
+					} else if (it->first=="horizontal-scroll") {
+						x_scrollable = (it->second=="yes" || it->second=="true");
+					} else if (it->first=="vertical-scrollbar-size") {
+						try {
+							y_scrollbar_size = std::stoi(it->second);
+						} catch (std::exception e) {
+							printf("%s: Unable to parse vertical-scrollbar-size=%s\n", e.what(), it->second.c_str());
+							y_scrollbar_size = 10;
+						}
+						y_scroll_rect.x = static_cast<int>(m_vinfo->xres)-y_scrollbar_size+2;
+						y_scroll_rect.width = y_scrollbar_size-4;
+						y_scroll_rect.height = static_cast<int>(m_vinfo->yres)-x_scrollbar_size-2;
+						x_scroll_rect.width = m_vinfo->xres-y_scrollbar_size-2;
+					} else if (it->first=="horizontal-scrollbar-size") {
+						try {
+							x_scrollbar_size = std::stoi(it->second);
+						} catch (std::exception e) {
+							printf("%s: Unable to parse horizontal-scrollbar-size=%s\n", e.what(), it->second.c_str());
+							x_scrollbar_size = 10;
+						}
+						x_scroll_rect.y = static_cast<int>(m_vinfo->yres)-x_scrollbar_size+2;
+						x_scroll_rect.width = m_vinfo->xres-y_scrollbar_size-2;
+						x_scroll_rect.height = x_scrollbar_size-4;
+						y_scroll_rect.height = static_cast<int>(m_vinfo->yres)-x_scrollbar_size-2;
+					}
+				}
 			}
 		}
 		return 0;

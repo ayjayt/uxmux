@@ -51,7 +51,7 @@ int main(int argc, char* argv[]) {
 		/* Separate draw layer for mouse */
 		litehtml::uint_ptr hdcMouse = mmap(0, vinfo.yres_virtual * finfo.line_length, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, off_t(0));
 
-		uxmux_container* painter = new uxmux_container(prefix, &finfo, &vinfo);
+		uxmux_container* painter = new uxmux_container(prefix, &finfo, &vinfo, 0, 0);
 		litehtml::context context;
 
 		/* Start litehtml rendering
@@ -108,7 +108,7 @@ int main(int argc, char* argv[]) {
 					if (std::count(page.begin(), page.end(), '/') > 0)
 						page = page.substr(0, page.find_last_of('/'));
 					else page = "";
-					painter = new uxmux_container(page, &finfo, &vinfo);
+					painter = new uxmux_container(page, &finfo, &vinfo, painter->get_x_scroll(), painter->get_y_scroll());
 					doc = litehtml::document::createFromString(buffer3.str().c_str(), painter, &context);
 					continue;
 				} else if (painter->check_new_page_alt()) {
@@ -125,13 +125,13 @@ int main(int argc, char* argv[]) {
 						if (std::count(page.begin(), page.end(), '/') > 0)
 							page = page.substr(0, page.find_last_of('/'));
 						else page = "";
-						painter = new uxmux_container(page, &finfo, &vinfo);
+						painter = new uxmux_container(page, &finfo, &vinfo, painter->get_x_scroll(), painter->get_y_scroll());
 						doc = litehtml::document::createFromString(buffer4.str().c_str(), painter, &context);
 						continue;
 					}
 				}
 			}
-			done = update(doc, click_ie, x, y, &redraw, &is_clicked);
+			done = update(doc, painter, click_ie, x, y, &redraw, &is_clicked);
 		}
 
 		#ifndef UXMUX_SAFE_MODE
