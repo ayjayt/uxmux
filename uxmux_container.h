@@ -296,14 +296,18 @@ public:
 			}
 
 			if (!isdefault) {
-				if (FT_New_Face(m_library, (m_directory+"fonts/"+name+mod+".ttf").c_str(), 0, &m_face)) {
-					// printf("   Error loading: fonts/%s.tff\n   Looking in system instead..\n", (name+mod).c_str());
-					if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+mod+".ttf").c_str(), 0, &m_face)) {
-						// printf("   Not found. Trying alternative: fonts/%s.tff\n", (name+modalt).c_str());
-						if (FT_New_Face(m_library, (m_directory+"fonts/"+name+modalt+".ttf").c_str(), 0, &m_face)) {
-							// printf("   Error loading: fonts/%s.tff\n   Looking in system instead..\n", (name+modalt).c_str());
-							if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+modalt+".ttf").c_str(), 0, &m_face)) {
-								printf("   WARNING: %s.tff (alt %s.tff) could not be found.\n", (name+mod).c_str(), (name+modalt).c_str());
+				if (FT_New_Face(m_library, (m_directory+"fonts/"+name+mod+".ttf").c_str(), 0, &m_face))
+				if (FT_New_Face(m_library, (m_directory+"fonts/"+name+mod+".otf").c_str(), 0, &m_face)) {
+					// printf("   Error loading: fonts/%s.ttf/.otf\n   Looking in system instead..\n", (name+mod).c_str());
+					if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+mod+".ttf").c_str(), 0, &m_face))
+					if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+mod+".otf").c_str(), 0, &m_face)) {
+						// printf("   Not found. Trying alternative: fonts/%s.ttf/.otf\n", (name+modalt).c_str());
+						if (FT_New_Face(m_library, (m_directory+"fonts/"+name+modalt+".ttf").c_str(), 0, &m_face))
+						if (FT_New_Face(m_library, (m_directory+"fonts/"+name+modalt+".otf").c_str(), 0, &m_face)) {
+							// printf("   Error loading: fonts/%s.ttf/.otf\n   Looking in system instead..\n", (name+modalt).c_str());
+							if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+modalt+".ttf").c_str(), 0, &m_face))
+							if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+modalt+".otf").c_str(), 0, &m_face)) {
+								printf("   WARNING: %s.ttf/.otf (alt %s.ttf/.otf) could not be found.\n", (name+mod).c_str(), (name+modalt).c_str());
 								/* Try loading default font */
 								name = get_default_font_name();
 								if (m_fonts.count(name+mod+std::to_string(decoration)+std::to_string(size))) {
@@ -312,14 +316,18 @@ public:
 								}
 
 								if (!isdefault) {
-									if (FT_New_Face(m_library, (m_directory+"fonts/"+name+mod+".ttf").c_str(), 0, &m_face)) {
-										// printf("   Error loading: fonts/%s.tff\n   Looking in system instead..\n", (name+mod).c_str());
-										if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+mod+".ttf").c_str(), 0, &m_face)) {
-											// printf("   Not found. Trying alternative: fonts/%s.tff\n", (name+modalt).c_str());
-											if (FT_New_Face(m_library, (m_directory+"fonts/"+name+modalt+".ttf").c_str(), 0, &m_face)) {
-												// printf("   Error loading: fonts/%s.tff\n   Looking in system instead..\n", (name+modalt).c_str());
-												if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+modalt+".ttf").c_str(), 0, &m_face)) {
-													printf("      WARNING: default_font [%s.tff (alt %s.tff)] could not be found.\n", (name+mod).c_str(), (name+modalt).c_str());
+									if (FT_New_Face(m_library, (m_directory+"fonts/"+name+mod+".ttf").c_str(), 0, &m_face))
+									if (FT_New_Face(m_library, (m_directory+"fonts/"+name+mod+".otf").c_str(), 0, &m_face)) {
+										// printf("   Error loading: fonts/%s.ttf/.otf\n   Looking in system instead..\n", (name+mod).c_str());
+										if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+mod+".ttf").c_str(), 0, &m_face))
+										if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+mod+".otf").c_str(), 0, &m_face)) {
+											// printf("   Not found. Trying alternative: fonts/%s.ttf/.otf\n", (name+modalt).c_str());
+											if (FT_New_Face(m_library, (m_directory+"fonts/"+name+modalt+".ttf").c_str(), 0, &m_face))
+											if (FT_New_Face(m_library, (m_directory+"fonts/"+name+modalt+".otf").c_str(), 0, &m_face)) {
+												// printf("   Error loading: fonts/%s.ttf/.otf\n   Looking in system instead..\n", (name+modalt).c_str());
+												if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+modalt+".ttf").c_str(), 0, &m_face))
+												if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+modalt+".otf").c_str(), 0, &m_face)) {
+													printf("      WARNING: default_font [%s.ttf/.otf (alt %s.ttf/.otf)] could not be found.\n", (name+mod).c_str(), (name+modalt).c_str());
 													/* If all else fails, try to see if we've loaded a font before and use that */
 													if (!m_default_font.valid)
 														return 0;
