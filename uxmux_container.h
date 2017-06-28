@@ -50,11 +50,11 @@ private:
 #define DEFAULT_SCROLLBAR_SIZE 0
 
 public:
-	uxmux_container(std::string prefix, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo, int x, int y) :
-		m_handle(0), m_finfo(finfo), m_vinfo(vinfo), m_default_font({0, false}), m_cursor(false), m_new_page(""), m_new_page_alt(""), m_directory((strcmp(prefix.c_str(),"")!=0)?(prefix+"/"):""),
+	uxmux_container(std::string prefix, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo) :
+		m_handle(0), m_finfo(finfo), m_vinfo(vinfo), m_default_font({0, false}), m_cursor(false), m_new_page(""), m_new_page_alt(""), m_directory((strcmp(prefix.c_str(),""))?(prefix+"/"):""),
 		m_face(0), m_slot(0), m_back_buffer(static_cast<uint32_t*>(mmap(0, vinfo->yres_virtual * finfo->line_length, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, off_t(0)))), m_client_width(static_cast<int>(vinfo->xres)),
-		m_client_height(static_cast<int>(vinfo->yres)), x_scroll(x), y_scroll(y), x_scrollbar_size(DEFAULT_SCROLLBAR_SIZE), y_scrollbar_size(DEFAULT_SCROLLBAR_SIZE), x_scrollable(true), y_scrollable(true), m_scroll_cursor(false), x_scroll_clicked(0), y_scroll_clicked(0),
-		x_start_scroll_pos(0), y_start_scroll_pos(0), x_start_click_pos(0), y_start_click_pos(0), x_scroll_rect({2,static_cast<int>(vinfo->yres)-DEFAULT_SCROLLBAR_SIZE+2,vinfo->xres-DEFAULT_SCROLLBAR_SIZE-2,DEFAULT_SCROLLBAR_SIZE-4}), y_scroll_rect{vinfo->xres-DEFAULT_SCROLLBAR_SIZE+2,2,DEFAULT_SCROLLBAR_SIZE-4,static_cast<int>(vinfo->yres)-DEFAULT_SCROLLBAR_SIZE-2}
+		m_client_height(static_cast<int>(vinfo->yres)), x_scroll(0), y_scroll(0), x_scrollbar_size(DEFAULT_SCROLLBAR_SIZE), y_scrollbar_size(DEFAULT_SCROLLBAR_SIZE), x_scrollable(true), y_scrollable(true), m_scroll_cursor(false), x_scroll_clicked(0), y_scroll_clicked(0),
+		x_start_scroll_pos(0), y_start_scroll_pos(0), x_start_click_pos(0), y_start_click_pos(0), x_scroll_rect({2,static_cast<int>(vinfo->yres)-DEFAULT_SCROLLBAR_SIZE+2,static_cast<int>(vinfo->xres)-DEFAULT_SCROLLBAR_SIZE-2,DEFAULT_SCROLLBAR_SIZE-4}), y_scroll_rect{static_cast<int>(vinfo->xres)-DEFAULT_SCROLLBAR_SIZE+2,2,DEFAULT_SCROLLBAR_SIZE-4,static_cast<int>(vinfo->yres)-DEFAULT_SCROLLBAR_SIZE-2}
 	{
 		// printf("ctor uxmux_container\n");
 
@@ -119,13 +119,13 @@ public:
 
 	bool update_scrollbars(litehtml::document::ptr doc, int xpos, int ypos, unsigned char click) {
 		bool ret = false;
-		if (y_scrollable && !(x_scroll_clicked&0x1) && !isinside(xpos, ypos, x_scroll_rect) || y_scroll_clicked&0x3) {
+		if ((y_scrollable && !(x_scroll_clicked&0x1) && !isinside(xpos, ypos, x_scroll_rect)) || y_scroll_clicked&0x3) {
 			y_scroll_rect.height = static_cast<float>(static_cast<int>(m_vinfo->yres)-(x_scrollable?x_scrollbar_size:0)) / static_cast<float>(doc->height()) * (static_cast<float>(m_vinfo->yres)-static_cast<float>(x_scrollable?x_scrollbar_size:0));
-			if (isinside(xpos, ypos, y_scroll_rect) && !y_scroll_clicked || y_scroll_clicked&0x1)
+			if ((isinside(xpos, ypos, y_scroll_rect) && !y_scroll_clicked) || y_scroll_clicked&0x1)
 				m_scroll_cursor = true;
 			else
 				m_scroll_cursor = false;
-			if (m_scroll_cursor && click&0x1 || !m_cursor && click&0x1) {
+			if ((m_scroll_cursor && click&0x1) || (!m_cursor && click&0x1)) {
 				if (!y_scroll_clicked) {
 					y_scroll_clicked = m_scroll_cursor?0x1:0x2;
 					y_start_click_pos = ypos;
@@ -156,11 +156,11 @@ public:
 		}
 		if (x_scrollable && !(y_scroll_clicked&0x1)) {
 			x_scroll_rect.width = static_cast<float>(static_cast<int>(m_vinfo->xres)-(y_scrollable?y_scrollbar_size:0)) / static_cast<float>(doc->width()) * (static_cast<float>(m_vinfo->xres)-static_cast<float>(y_scrollable?y_scrollbar_size:0));
-			if (isinside(xpos, ypos, x_scroll_rect) && !x_scroll_clicked || x_scroll_clicked&0x1 || isinside(xpos, ypos, y_scroll_rect) && !x_scroll_clicked && !(click&0x1))
+			if ((isinside(xpos, ypos, x_scroll_rect) && !x_scroll_clicked) || x_scroll_clicked&0x1 || (isinside(xpos, ypos, y_scroll_rect) && !x_scroll_clicked && !(click&0x1)))
 				m_scroll_cursor = true;
 			else
 				m_scroll_cursor = false;
-			if (m_scroll_cursor && click&0x1 || !m_cursor && click&0x1) {
+			if ((m_scroll_cursor && click&0x1) || (!m_cursor && click&0x1)) {
 				if (!x_scroll_clicked) {
 					x_scroll_clicked = m_scroll_cursor?0x1:0x2;
 					x_start_click_pos = xpos;
@@ -446,7 +446,7 @@ public:
 		int ypos = pos.y;
 
 		/* Draw boxes where text should be */
-		// if (strcmp(text, " ")==0) {
+		// if (!strcmp(text, " ")) {
 		//     draw_rect(hdc, xpos, ypos, pos.width, pos.height, 0xff, 0, 0);
 		// } else
 		//     draw_rect(hdc, xpos, ypos, pos.width, pos.height, 0xff, 0xff, 0);
@@ -582,7 +582,7 @@ public:
 
 	void draw_background(litehtml::uint_ptr hdc, const litehtml::background_paint& bg) {
 		// printf("draw_background: %s at (%d, %d)\n", bg.image.c_str(), bg.position_x, bg.position_y);
-		if (strcmp(bg.image.c_str(), "")!=0)
+		if (strcmp(bg.image.c_str(), ""))
 			if (!m_image_loader.load_image((m_directory+bg.image).c_str()))
 				if (!m_image_loader.copy_to_framebuffer(hdc, m_finfo, m_vinfo, bg.position_x, bg.position_y))
 					return;
@@ -623,7 +623,7 @@ public:
 
 	void link(const std::shared_ptr<litehtml::document>& doc, const litehtml::element::ptr& el) {
 		// printf("link: rel=%s, type=%s, href=%s\n", el->get_attr("rel"), el->get_attr("type"), el->get_attr("href"));
-		if (!m_handle && el->get_attr("type") && strcmp(el->get_attr("type"), "binary/elf")==0){
+		if (!m_handle && el->get_attr("type") && !strcmp(el->get_attr("type"), "binary/elf")){
 			m_handle = dlopen((m_directory+el->get_attr("href")).c_str(), RTLD_LAZY);
 			if (!m_handle) {
 				printf("%s\n", dlerror());
@@ -634,7 +634,7 @@ public:
 	void on_anchor_click(const litehtml::tchar_t* url, const litehtml::element::ptr& el) {
 		// printf("on_anchor_click: %s\n", url);
 		std::string filename = url;
-		if (strcmp(filename.substr(filename.find_last_of(".") + 1).c_str(), "elf") == 0) {
+		if (!strcmp(filename.substr(filename.find_last_of(".") + 1).c_str(), "elf")) {
 			if(m_handle) {
 				void(*target)() = reinterpret_cast<void(*)()>(dlsym(m_handle, el->get_attr("target")));
 				if (!target) {
@@ -642,7 +642,7 @@ public:
 				} else
 					target();
 			}
-		} else if (strcmp(filename.substr(filename.find_last_of(".") + 1).c_str(), "html") == 0) {
+		} else if (!strcmp(filename.substr(filename.find_last_of(".") + 1).c_str(), "html")) {
 			m_new_page = filename;
 			m_new_page_alt = "";
 		} else if (filename != "") {
@@ -653,7 +653,7 @@ public:
 
 	void set_cursor(const litehtml::tchar_t* cursor) {
 		// printf("set_cursor: %s\n", cursor);
-		if (strcmp(cursor, "auto") != 0)
+		if (strcmp(cursor, "auto"))
 			m_cursor = true;
 		else if (!m_scroll_cursor)
 			m_cursor = false;
@@ -701,7 +701,7 @@ public:
 			for (it=attributes.begin(); it!=attributes.end(); ++it) {
 				// printf("   set_attr: %s=%s\n", it->first.c_str(), it->second.c_str());
 				element.set_attr(it->first.c_str(), it->second.c_str());
-				if (strcmp(tag_name, "meta")==0) {
+				if (!strcmp(tag_name, "meta")) {
 					if (it->first=="client-width") {
 						try {
 							m_client_width = std::stoi(it->second);
@@ -728,7 +728,7 @@ public:
 						y_scroll_rect.x = static_cast<int>(m_vinfo->xres)-y_scrollbar_size+2;
 						y_scroll_rect.width = y_scrollbar_size-4;
 						y_scroll_rect.height = static_cast<int>(m_vinfo->yres)-x_scrollbar_size-2;
-						x_scroll_rect.width = m_vinfo->xres-y_scrollbar_size-2;
+						x_scroll_rect.width = static_cast<int>(m_vinfo->xres)-y_scrollbar_size-2;
 					} else if (it->first=="horizontal-scrollbar-size") {
 						try {
 							x_scrollbar_size = std::stoi(it->second);
@@ -737,7 +737,7 @@ public:
 							x_scrollbar_size = 10;
 						}
 						x_scroll_rect.y = static_cast<int>(m_vinfo->yres)-x_scrollbar_size+2;
-						x_scroll_rect.width = m_vinfo->xres-y_scrollbar_size-2;
+						x_scroll_rect.width = static_cast<int>(m_vinfo->xres)-y_scrollbar_size-2;
 						x_scroll_rect.height = x_scrollbar_size-4;
 						y_scroll_rect.height = static_cast<int>(m_vinfo->yres)-x_scrollbar_size-2;
 					}

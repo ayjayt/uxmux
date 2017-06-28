@@ -38,7 +38,7 @@ void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, uxmux_container
 			doc->render(static_cast<int>(vinfo->xres));
 			// printf("drawing..\n");
 			// printf("   xscroll=%d, yscroll=%d\n", painter->get_x_scroll(), painter->get_y_scroll());
-			litehtml::position clip({0,0,vinfo->xres,vinfo->yres});
+			litehtml::position clip({0,0,static_cast<int>(vinfo->xres),static_cast<int>(vinfo->yres)});
 			doc->draw(painter->get_back_buffer(),painter->get_x_scroll(),painter->get_y_scroll(),&clip);
 		}
 
