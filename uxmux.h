@@ -16,10 +16,10 @@
 
 /* BEWARE: It seems that these can change on reboot..
 		also note, they might be the same file */
-#define MOUSE_MOVE_FILE "/dev/input/event7"
+#define MOUSE_MOVE_FILE "/dev/input/event1"
 #define MOUSE_CLICK_FILE "/dev/input/mouse0"
 
-#define MOUSE_EXACT true
+#define MOUSE_EXACT false
 
 #define FRAMEBUFFER_FILE "/dev/fb0"
 #define TTY_FILE "/dev/tty0"
@@ -112,12 +112,12 @@ litehtml::uint_ptr get_drawable(struct fb_fix_screeninfo *_finfo, struct fb_var_
 		right = data[0] & 0x2;
 		middle = data[0] & 0x4;
 
-	mmf (move): type=3, time->time
+	mmf (move): type={3 for exact | 2 for change}, time->time
 		code=0 -> x
 		code=1 -> y
 		value -> val
-		if MOUSE_EXACT: x, y are precise coordinates
-			else they are the change in position
+		if MOUSE_EXACT: x, y treated as precise coordinates
+			else they are treated as change in position
 */
 unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned char last_click) {
 	if (!mcf || !mmf) return 0x10;
@@ -169,13 +169,13 @@ unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned ch
 	/* Update mouse movement */
 	if (select(mmf + 1, &read_fds, &write_fds, &except_fds, &timeout) == 1) {
 		read(mmf, &move_ie, sizeof(struct input_event));
-		while (move_ie.type==0)
+		while (!move_ie.type)
 			read(mmf, &move_ie, sizeof(struct input_event));
 		// printf("time %ld.%06ld\ttype %d\tcode %d\tvalue %d\n", move_ie.time.tv_sec, move_ie.time.tv_usec, move_ie.type, move_ie.code, move_ie.value);
-		if (move_ie.code) {
+		if (move_ie.type==(MOUSE_EXACT?3:2) && move_ie.code) {
 			y = move_ie.value;
 			y_flag = true;
-		} else {
+		} else if (move_ie.type==(MOUSE_EXACT?3:2)) {
 			x = move_ie.value;
 			x_flag = true;
 		}
@@ -184,7 +184,7 @@ unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned ch
 		while (!y_flag || !x_flag) {
 			if (select(mmf + 1, &read_fds, &write_fds, &except_fds, &timeout) == 1) {
 				read(mmf, &move_ie, sizeof(struct input_event));
-				while (move_ie.type==0) {
+				while (move_ie.type!=(MOUSE_EXACT?3:2)) {
 					/* Set timeout to 1.0 microseconds */
 					fd_ready_select(mmf, 0, 1);
 					if (select(mmf + 1, &read_fds, &write_fds, &except_fds, &timeout) == 1)
@@ -226,8 +226,10 @@ unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned ch
 		y = static_cast<float>(y-MY_MIN)/(MY_MAX-MY_MIN)*TARGET_Y;
 		if (y>7) *y_ret = y;
 	#else
-		*x_ret += x;
-		*y_ret += y;
+		if (x_flag)
+			*x_ret += x*120;
+		if (y_flag)
+			*y_ret += y*120;
 
 		if (*x_ret>MX_MAX)*x_ret=MX_MAX;
 		if (*x_ret<MX_MIN)*x_ret=MX_MIN;
