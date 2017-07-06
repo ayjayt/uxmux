@@ -14,24 +14,25 @@
 #include "uxmux_container.h"
 #include "uxmux.h"
 
-/* TODO: After it works well, lets clean things up, make it neat. Look for optimizations, deal with warnings.. */
-
-/* BEWARE: It seems that these can change on reboot */
+/* BEWARE: It seems that these can change on reboot..
+		also note, they might be the same file */
 #define MOUSE_MOVE_FILE "/dev/input/event7"
 #define MOUSE_CLICK_FILE "/dev/input/mouse0"
+
+#define MOUSE_EXACT true
 
 #define FRAMEBUFFER_FILE "/dev/fb0"
 #define TTY_FILE "/dev/tty0"
 
-unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned char last_click);
-litehtml::uint_ptr get_drawable(struct fb_fix_screeninfo *_finfo, struct fb_var_screeninfo *_vinfo);
-bool update(litehtml::document::ptr doc, uxmux_container* painter, unsigned char click_ie, int x, int y, bool* redraw, bool* is_clicked);
 void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, uxmux_container* painter, struct fb_var_screeninfo* vinfo, struct fb_fix_screeninfo* finfo, litehtml::uint_ptr hdcMouse, int x, int y, unsigned char click_ie, bool redraw);
+bool update(litehtml::document::ptr doc, uxmux_container* painter, unsigned char click_ie, int x, int y, bool* redraw, bool* is_clicked);
+litehtml::uint_ptr get_drawable(struct fb_fix_screeninfo *_finfo, struct fb_var_screeninfo *_vinfo);
+unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned char last_click);
 
 /* Render and draw to the screen*/
 void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, uxmux_container* painter, struct fb_var_screeninfo* vinfo, struct fb_fix_screeninfo* finfo, litehtml::uint_ptr hdcMouse, int x, int y, unsigned char click_ie, bool redraw) {
 		if (redraw) {
-		    /* Clear the screen to white */
+			/* Clear the screen to white */
 			painter->draw_rect(painter->get_back_buffer(), 0, 0, static_cast<int>(vinfo->xres), static_cast<int>(vinfo->yres), 0xff, 0xff, 0xff);
 
 			// printf("rendering..\n");
@@ -115,6 +116,8 @@ litehtml::uint_ptr get_drawable(struct fb_fix_screeninfo *_finfo, struct fb_var_
 		code=0 -> x
 		code=1 -> y
 		value -> val
+		if MOUSE_EXACT: x, y are precise coordinates
+			else they are the change in position
 */
 unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned char last_click) {
 	if (!mcf || !mmf) return 0x10;
@@ -211,16 +214,26 @@ unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned ch
 		}
 	}
 
-	if (x>MX_MAX)x=MX_MAX;
-	if (x<MX_MIN)x=MX_MIN;
-	if (y>MY_MAX)y=MY_MAX;
-	if (y<MY_MIN)y=MY_MIN;
+	#if MOUSE_EXACT
+		if (x>MX_MAX)x=MX_MAX;
+		if (x<MX_MIN)x=MX_MIN;
+		if (y>MY_MAX)y=MY_MAX;
+		if (y<MY_MIN)y=MY_MIN;
 
-	x = static_cast<float>(x-MX_MIN)/(MX_MAX-MX_MIN)*TARGET_X;
-	if (x>11) *x_ret = x;
+		x = static_cast<float>(x-MX_MIN)/(MX_MAX-MX_MIN)*TARGET_X;
+		if (x>11) *x_ret = x;
 
-	y = static_cast<float>(y-MY_MIN)/(MY_MAX-MY_MIN)*TARGET_Y;
-	if (y>7) *y_ret = y;
+		y = static_cast<float>(y-MY_MIN)/(MY_MAX-MY_MIN)*TARGET_Y;
+		if (y>7) *y_ret = y;
+	#else
+		*x_ret += x;
+		*y_ret += y;
+
+		if (*x_ret>MX_MAX)*x_ret=MX_MAX;
+		if (*x_ret<MX_MIN)*x_ret=MX_MIN;
+		if (*y_ret>MY_MAX)*y_ret=MY_MAX;
+		if (*y_ret<MY_MIN)*y_ret=MY_MIN;
+	#endif
 
 	return click_ie[0]&(~0x10);
 }

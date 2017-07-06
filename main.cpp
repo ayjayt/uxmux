@@ -1,9 +1,9 @@
 #include "uxmux.h"
 
-/* TODO: After it works well, lets clean things up, make it neat. Look for optimizations, deal with warnings.. */
+/* Disables the graphics mode switching when true
+	which prevents screen freeze should an error occur */
+#define UXMUX_SAFE_MODE true
 
-/* Uncomment to easily disable the graphics mode switching*/
-// #define UXMUX_SAFE_MODE 1
 int main(int argc, char* argv[]) {
 	if (argc!=3) {
 		printf("usage: %s <html_file> <master_css>\n", argv[0]);
@@ -51,7 +51,7 @@ int main(int argc, char* argv[]) {
 		/* Separate draw layer for mouse */
 		litehtml::uint_ptr hdcMouse = mmap(0, vinfo.yres_virtual * finfo.line_length, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, off_t(0));
 
-		uxmux_container* painter = new uxmux_container(prefix, &finfo, &vinfo);
+		uxmux_container* painter = new uxmux_container(prefix, "", &finfo, &vinfo);
 		litehtml::context context;
 
 		/* Start litehtml rendering
@@ -84,9 +84,9 @@ int main(int argc, char* argv[]) {
 		}
 
 		///////////////////////////////////////////////////////////
-		#ifndef UXMUX_SAFE_MODE
-		int tty_fd = open(TTY_FILE, O_RDWR);
-		ioctl(tty_fd, KDSETMODE, KD_GRAPHICS);
+		#if !UXMUX_SAFE_MODE
+			int tty_fd = open(TTY_FILE, O_RDWR);
+			ioctl(tty_fd, KDSETMODE, KD_GRAPHICS);
 		#endif
 
 		/* Main program loop */
@@ -108,7 +108,7 @@ int main(int argc, char* argv[]) {
 					if (std::count(page.begin(), page.end(), '/') > 0)
 						page = page.substr(0, page.find_last_of('/'));
 					else page = "";
-					painter = new uxmux_container(page, &finfo, &vinfo);
+					painter = new uxmux_container(page, painter->get_font_directory(), &finfo, &vinfo);
 					doc = litehtml::document::createFromString(buffer3.str().c_str(), painter, &context);
 					continue;
 				} else if (painter->check_new_page_alt()) {
@@ -125,7 +125,7 @@ int main(int argc, char* argv[]) {
 						if (std::count(page.begin(), page.end(), '/') > 0)
 							page = page.substr(0, page.find_last_of('/'));
 						else page = "";
-						painter = new uxmux_container(page, &finfo, &vinfo);
+						painter = new uxmux_container(page, painter->get_font_directory(), &finfo, &vinfo);
 						doc = litehtml::document::createFromString(buffer4.str().c_str(), painter, &context);
 						continue;
 					}
@@ -134,8 +134,8 @@ int main(int argc, char* argv[]) {
 			done = update(doc, painter, click_ie, x, y, &redraw, &is_clicked);
 		}
 
-		#ifndef UXMUX_SAFE_MODE
-		ioctl(tty_fd, KDSETMODE, KD_TEXT);
+		#if !UXMUX_SAFE_MODE
+			ioctl(tty_fd, KDSETMODE, KD_TEXT);
 		#endif
 		///////////////////////////////////////////////////////////
 	}

@@ -15,6 +15,8 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
+#define SYSTEM_FONT_DIR "/usr/share/fonts/truetype/dejavu/"
+
 class uxmux_container : public litehtml::document_container {
 private:
 	struct font_structure {
@@ -32,7 +34,7 @@ private:
 	struct fb_var_screeninfo* m_vinfo;
 	font_structure_t m_default_font;
 	bool m_cursor;
-	std::string m_new_page, m_new_page_alt, m_directory;
+	std::string m_new_page, m_new_page_alt, m_directory, m_font_directory;
 
 	FT_Library m_library;
 	FT_Face m_face;
@@ -46,17 +48,23 @@ private:
 	int x_scroll_clicked, y_scroll_clicked;
 	int x_start_scroll_pos, y_start_scroll_pos, x_start_click_pos, y_start_click_pos;
 	litehtml::position x_scroll_rect, y_scroll_rect;
+	bool m_show_mouse;
 
 #define DEFAULT_SCROLLBAR_SIZE 0
 
 public:
-	uxmux_container(std::string prefix, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo) :
-		m_handle(0), m_finfo(finfo), m_vinfo(vinfo), m_default_font({0, false}), m_cursor(false), m_new_page(""), m_new_page_alt(""), m_directory((strcmp(prefix.c_str(),""))?(prefix+"/"):""),
+	/* Use of initializer list prevents unnecessary calls to default constructors */
+	uxmux_container(std::string prefix, std::string font_directory, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo) :
+		m_handle(0), m_finfo(finfo), m_vinfo(vinfo), m_default_font({0, false}), m_cursor(false), m_new_page(""), m_new_page_alt(""), m_directory((strcmp(prefix.c_str(),""))?(prefix+"/"):""), m_font_directory(font_directory),
 		m_face(0), m_slot(0), m_back_buffer(static_cast<uint32_t*>(mmap(0, vinfo->yres_virtual * finfo->line_length, PROT_READ|PROT_WRITE, MAP_PRIVATE|MAP_ANONYMOUS, -1, off_t(0)))), m_client_width(static_cast<int>(vinfo->xres)),
 		m_client_height(static_cast<int>(vinfo->yres)), x_scroll(0), y_scroll(0), x_scrollbar_size(DEFAULT_SCROLLBAR_SIZE), y_scrollbar_size(DEFAULT_SCROLLBAR_SIZE), x_scrollable(true), y_scrollable(true), m_scroll_cursor(false), x_scroll_clicked(0), y_scroll_clicked(0),
-		x_start_scroll_pos(0), y_start_scroll_pos(0), x_start_click_pos(0), y_start_click_pos(0), x_scroll_rect({2,static_cast<int>(vinfo->yres)-DEFAULT_SCROLLBAR_SIZE+2,static_cast<int>(vinfo->xres)-DEFAULT_SCROLLBAR_SIZE-2,DEFAULT_SCROLLBAR_SIZE-4}), y_scroll_rect{static_cast<int>(vinfo->xres)-DEFAULT_SCROLLBAR_SIZE+2,2,DEFAULT_SCROLLBAR_SIZE-4,static_cast<int>(vinfo->yres)-DEFAULT_SCROLLBAR_SIZE-2}
+		x_start_scroll_pos(0), y_start_scroll_pos(0), x_start_click_pos(0), y_start_click_pos(0), x_scroll_rect({2,static_cast<int>(vinfo->yres)-DEFAULT_SCROLLBAR_SIZE+2,static_cast<int>(vinfo->xres)-DEFAULT_SCROLLBAR_SIZE-2,DEFAULT_SCROLLBAR_SIZE-4}),
+		y_scroll_rect{static_cast<int>(vinfo->xres)-DEFAULT_SCROLLBAR_SIZE+2,2,DEFAULT_SCROLLBAR_SIZE-4,static_cast<int>(vinfo->yres)-DEFAULT_SCROLLBAR_SIZE-2}, m_show_mouse(true)
 	{
 		// printf("ctor uxmux_container\n");
+
+		if (m_font_directory=="")
+			m_font_directory = m_directory+"fonts/";
 
 		/* Setup Font Library */
 		FT_Init_FreeType(&m_library);
@@ -93,12 +101,14 @@ public:
 
 	void draw_mouse(litehtml::uint_ptr hdc, int xpos, int ypos, unsigned char click) {
 		// printf("draw_mouse, at (%d, %d)\n", xpos, ypos);
-		if (m_cursor || m_scroll_cursor) {
-			draw_rect(hdc, xpos-1, ypos-4, 3, 9, click&0x4?0xff:0, click&0x2?0xff:0, click&0x1?0xff:0);
-			draw_rect(hdc, xpos-4, ypos-1, 9, 3, click&0x4?0xff:0, click&0x2?0xff:0, click&0x1?0xff:0);
-		} else {
-			draw_rect(hdc, xpos-1, ypos-2, 3, 5, click&0x4?0xff:0, click&0x2?0xff:0, click&0x1?0xff:0);
-			draw_rect(hdc, xpos-2, ypos-1, 5, 3, click&0x4?0xff:0, click&0x2?0xff:0, click&0x1?0xff:0);
+		if (m_show_mouse) {
+			if (m_cursor || m_scroll_cursor) {
+				draw_rect(hdc, xpos-1, ypos-4, 3, 9, click&0x4?0xff:0, click&0x2?0xff:0, click&0x1?0xff:0);
+				draw_rect(hdc, xpos-4, ypos-1, 9, 3, click&0x4?0xff:0, click&0x2?0xff:0, click&0x1?0xff:0);
+			} else {
+				draw_rect(hdc, xpos-1, ypos-2, 3, 5, click&0x4?0xff:0, click&0x2?0xff:0, click&0x1?0xff:0);
+				draw_rect(hdc, xpos-2, ypos-1, 5, 3, click&0x4?0xff:0, click&0x2?0xff:0, click&0x1?0xff:0);
+			}
 		}
 	}
 
@@ -250,10 +260,11 @@ public:
 	bool check_new_page_alt() { return m_new_page_alt != ""; }
 	uint32_t* get_back_buffer() { return m_back_buffer; }
 	std::string get_directory() { return m_directory; }
+	std::string get_font_directory() { return m_font_directory; }
 	int get_x_scroll() { return x_scroll; }
 	int get_y_scroll() { return y_scroll; }
 
-	/* From abstract class "litehtml::document_container" in "litehtml/src/html.h"
+	/* The following are from abstract class "litehtml::document_container" in "litehtml/src/html.h"
 	   see also: https://github.com/litehtml/litehtml/wiki/document_container */
 
 	litehtml::uint_ptr create_font(const litehtml::tchar_t* faceName, int size, int weight, litehtml::font_style italic, unsigned int decoration, litehtml::font_metrics* fm) {
@@ -296,17 +307,17 @@ public:
 			}
 
 			if (!isdefault) {
-				if (FT_New_Face(m_library, (m_directory+"fonts/"+name+mod+".ttf").c_str(), 0, &m_face))
-				if (FT_New_Face(m_library, (m_directory+"fonts/"+name+mod+".otf").c_str(), 0, &m_face)) {
+				if (FT_New_Face(m_library, (m_font_directory+name+mod+".ttf").c_str(), 0, &m_face))
+				if (FT_New_Face(m_library, (m_font_directory+name+mod+".otf").c_str(), 0, &m_face)) {
 					// printf("   Error loading: fonts/%s.ttf/.otf\n   Looking in system instead..\n", (name+mod).c_str());
-					if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+mod+".ttf").c_str(), 0, &m_face))
-					if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+mod+".otf").c_str(), 0, &m_face)) {
+					if (FT_New_Face(m_library, (SYSTEM_FONT_DIR+name+mod+".ttf").c_str(), 0, &m_face))
+					if (FT_New_Face(m_library, (SYSTEM_FONT_DIR+name+mod+".otf").c_str(), 0, &m_face)) {
 						// printf("   Not found. Trying alternative: fonts/%s.ttf/.otf\n", (name+modalt).c_str());
-						if (FT_New_Face(m_library, (m_directory+"fonts/"+name+modalt+".ttf").c_str(), 0, &m_face))
-						if (FT_New_Face(m_library, (m_directory+"fonts/"+name+modalt+".otf").c_str(), 0, &m_face)) {
+						if (FT_New_Face(m_library, (m_font_directory+name+modalt+".ttf").c_str(), 0, &m_face))
+						if (FT_New_Face(m_library, (m_font_directory+name+modalt+".otf").c_str(), 0, &m_face)) {
 							// printf("   Error loading: fonts/%s.ttf/.otf\n   Looking in system instead..\n", (name+modalt).c_str());
-							if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+modalt+".ttf").c_str(), 0, &m_face))
-							if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+modalt+".otf").c_str(), 0, &m_face)) {
+							if (FT_New_Face(m_library, (SYSTEM_FONT_DIR+name+modalt+".ttf").c_str(), 0, &m_face))
+							if (FT_New_Face(m_library, (SYSTEM_FONT_DIR+name+modalt+".otf").c_str(), 0, &m_face)) {
 								printf("   WARNING: %s.ttf/.otf (alt %s.ttf/.otf) could not be found.\n", (name+mod).c_str(), (name+modalt).c_str());
 								/* Try loading default font */
 								name = get_default_font_name();
@@ -316,23 +327,22 @@ public:
 								}
 
 								if (!isdefault) {
-									if (FT_New_Face(m_library, (m_directory+"fonts/"+name+mod+".ttf").c_str(), 0, &m_face))
-									if (FT_New_Face(m_library, (m_directory+"fonts/"+name+mod+".otf").c_str(), 0, &m_face)) {
+									if (FT_New_Face(m_library, (m_font_directory+name+mod+".ttf").c_str(), 0, &m_face))
+									if (FT_New_Face(m_library, (m_font_directory+name+mod+".otf").c_str(), 0, &m_face)) {
 										// printf("   Error loading: fonts/%s.ttf/.otf\n   Looking in system instead..\n", (name+mod).c_str());
-										if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+mod+".ttf").c_str(), 0, &m_face))
-										if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+mod+".otf").c_str(), 0, &m_face)) {
+										if (FT_New_Face(m_library, (SYSTEM_FONT_DIR+name+mod+".ttf").c_str(), 0, &m_face))
+										if (FT_New_Face(m_library, (SYSTEM_FONT_DIR+name+mod+".otf").c_str(), 0, &m_face)) {
 											// printf("   Not found. Trying alternative: fonts/%s.ttf/.otf\n", (name+modalt).c_str());
-											if (FT_New_Face(m_library, (m_directory+"fonts/"+name+modalt+".ttf").c_str(), 0, &m_face))
-											if (FT_New_Face(m_library, (m_directory+"fonts/"+name+modalt+".otf").c_str(), 0, &m_face)) {
+											if (FT_New_Face(m_library, (m_font_directory+name+modalt+".ttf").c_str(), 0, &m_face))
+											if (FT_New_Face(m_library, (m_font_directory+name+modalt+".otf").c_str(), 0, &m_face)) {
 												// printf("   Error loading: fonts/%s.ttf/.otf\n   Looking in system instead..\n", (name+modalt).c_str());
-												if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+modalt+".ttf").c_str(), 0, &m_face))
-												if (FT_New_Face(m_library, ("/usr/share/fonts/truetype/dejavu/"+name+modalt+".otf").c_str(), 0, &m_face)) {
+												if (FT_New_Face(m_library, (SYSTEM_FONT_DIR+name+modalt+".ttf").c_str(), 0, &m_face))
+												if (FT_New_Face(m_library, (SYSTEM_FONT_DIR+name+modalt+".otf").c_str(), 0, &m_face)) {
 													printf("      WARNING: default_font [%s.ttf/.otf (alt %s.ttf/.otf)] could not be found.\n", (name+mod).c_str(), (name+modalt).c_str());
-													/* If all else fails, try to see if we've loaded a font before and use that */
-													if (!m_default_font.valid)
-														return 0;
-													/* Last option, will cause "Critical Fail" message (see below) if fails */
-													load_font(&m_default_font);
+													/* If all else fails, try to see if we've loaded a font before and use that,
+														this will cause "Critical Fail" message if it fails */
+													if (m_default_font.valid)
+														load_font(&m_default_font);
 													isdefault = true;
 												}
 											}
@@ -360,9 +370,8 @@ public:
 			}
 
 			if (!m_face) {
-				/* i.e. There will be no rendering of text linked to this font */
-				printf("CRITICAL FAIL: while loading fonts\n");
-				return 0;
+				/* Because we always fall back to the default font, an empty font means no hope */
+				throw std::invalid_argument("CRITICAL FAIL: no fonts found");
 			}
 
 			/* set up matrix */

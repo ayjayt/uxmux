@@ -1,5 +1,6 @@
-# C extensions
+# C compiling extensions
 *.o
+*.elf
 
 # Distribution / packaging
 build/

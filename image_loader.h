@@ -34,6 +34,7 @@ private:
     png_bytep* m_row_pointers;
 
 public:
+    /* Use of initializer list prevents unnecessary calls to default constructors */
     image_loader() :
         m_file_type(none), m_png_ptr(0), m_info_ptr(0), m_row_pointers(0)
     {
