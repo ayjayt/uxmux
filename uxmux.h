@@ -16,10 +16,10 @@
 
 /* BEWARE: It seems that these can change on reboot..
 		also note, they might be the same file */
-#define MOUSE_MOVE_FILE "/dev/input/event1"
+#define MOUSE_MOVE_FILE "/dev/input/event7"
 #define MOUSE_CLICK_FILE "/dev/input/mouse0"
 
-#define MOUSE_EXACT false
+#define MOUSE_EXACT true
 
 #define FRAMEBUFFER_FILE "/dev/fb0"
 #define TTY_FILE "/dev/tty0"
@@ -83,6 +83,9 @@ bool update(litehtml::document::ptr doc, uxmux_container* painter, unsigned char
 		*redraw |= doc->on_lbutton_up(x-painter->get_x_scroll(), y-painter->get_y_scroll(), /*client_x*/x-painter->get_x_scroll(), /*client_y*/y-painter->get_y_scroll(), redraw_box);
 	}
 	// *redraw |= doc->on_mouse_leave(redraw_box);
+
+	*redraw |= painter->handle_functions(doc);
+
 	return click_ie&0x2;
 }
 
@@ -112,6 +115,7 @@ litehtml::uint_ptr get_drawable(struct fb_fix_screeninfo *_finfo, struct fb_var_
 		right = data[0] & 0x2;
 		middle = data[0] & 0x4;
 
+	see: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/include/uapi/linux/input-event-codes.h
 	mmf (move): type={3 for exact | 2 for change}, time->time
 		code=0 -> x
 		code=1 -> y

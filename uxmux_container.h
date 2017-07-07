@@ -25,7 +25,16 @@ private:
 	};
 	typedef struct font_structure font_structure_t;
 
+	struct function_structure {
+		void* function;
+		bool dynamic;
+		bool ret_string;
+		std::string id;
+	};
+	typedef struct function_structure function_structure_t;
+
 	std::unordered_map<std::string, font_structure_t> m_fonts;
+	std::unordered_map<std::string, function_structure_t> m_functions;
 
 	image_loader m_image_loader;
 	void* m_handle;
@@ -90,6 +99,9 @@ public:
 			}
 			FT_Done_FreeType(m_library);
 		}
+		if (!m_functions.empty()) {
+			m_functions.clear();
+		}
 	}
 
 	void swap_buffer(litehtml::uint_ptr src_hdc, litehtml::uint_ptr dest_hdc, struct fb_var_screeninfo *vinfo, struct fb_fix_screeninfo *finfo) {
@@ -121,6 +133,38 @@ public:
 			draw_rect(hdc, 0, static_cast<int>(m_vinfo->yres) - x_scrollbar_size, static_cast<int>(m_vinfo->xres), x_scrollbar_size, 0xaa, 0xaa, 0xaa);
 			draw_rect(hdc, x_scroll_rect.x, x_scroll_rect.y, x_scroll_rect.width, x_scroll_rect.height, 0xdd, 0xdd, 0xdd);
 		}
+	}
+
+	bool handle_functions(litehtml::document::ptr doc) {
+		bool edit = false;
+		if (!m_functions.empty()) {
+			std::unordered_map<std::string, function_structure_t>::iterator it;
+			std::vector<std::string> remove_me;
+			remove_me.reserve(m_functions.size());
+			for (it=m_functions.begin(); it!=m_functions.end(); ++it) {
+				if (it->second.dynamic) {
+					int(*target)() = reinterpret_cast<int(*)()>(it->second.function);
+					if (!target())
+						remove_me.push_back(it->first);
+				} else if (it->second.ret_string) {
+					void(*target)(char*, int) = reinterpret_cast<void(*)(char*, int)>(it->second.function);
+					char str[255]{0};
+					target(str, 255);
+					litehtml::element::ptr el = doc->root()->select_one("#"+it->second.id);
+					if (el) el->set_text(str);
+					edit = true;
+				} else {
+					void(*target)() = reinterpret_cast<void(*)()>(it->second.function);
+					target();
+				}
+			}
+
+			unsigned int i;
+			for (i=0; i<remove_me.size(); i++)
+				m_functions.erase(remove_me[i]);
+			remove_me.clear();
+		}
+		return edit;
 	}
 
 	#define isinside(xpos, ypos, rect) \
@@ -283,7 +327,7 @@ public:
 			}
 			name.erase(std::remove(name.begin(), name.end(), '"'), name.end());
 			name.erase(std::remove(name.begin(), name.end(), ','), name.end());
-			// printf("   Parsed Name : %s\n", name.cstr());
+			// printf("   Parsed Name : %s\n", name.c_str());
 
 			std::string mod = "";
 			std::string modalt = "-Regular";
@@ -632,24 +676,27 @@ public:
 
 	void link(const std::shared_ptr<litehtml::document>& doc, const litehtml::element::ptr& el) {
 		// printf("link: rel=%s, type=%s, href=%s\n", el->get_attr("rel"), el->get_attr("type"), el->get_attr("href"));
-		if (!m_handle && el->get_attr("type") && !strcmp(el->get_attr("type"), "binary/elf")){
-			m_handle = dlopen((m_directory+el->get_attr("href")).c_str(), RTLD_LAZY);
-			if (!m_handle) {
-				printf("%s\n", dlerror());
-			}
-		}
 	}
 
 	void on_anchor_click(const litehtml::tchar_t* url, const litehtml::element::ptr& el) {
 		// printf("on_anchor_click: %s\n", url);
 		std::string filename = url;
 		if (!strcmp(filename.substr(filename.find_last_of(".") + 1).c_str(), "elf")) {
-			if(m_handle) {
-				void(*target)() = reinterpret_cast<void(*)()>(dlsym(m_handle, el->get_attr("target")));
-				if (!target) {
-					printf("%s\n", dlerror());
-				} else
-					target();
+			if(m_handle && el->get_attr("type")) {
+				if (!strcmp(el->get_attr("type"), "function/static")) {
+					void(*target)() = reinterpret_cast<void(*)()>(dlsym(m_handle, el->get_attr("target")));
+					if (!target) {
+						printf("%s\n", dlerror());
+					} else
+						target();
+				} else if (!strcmp(el->get_attr("type"), "function/dynamic")) {
+					std::string target = el->get_attr("target")?el->get_attr("target"):"";
+					if (!m_functions.count(target)) {
+						void* function = dlsym(m_handle, target.c_str());
+						if (function)
+							m_functions[target] = function_structure_t({function, true, false, ""});
+					}
+				}
 			}
 		} else if (!strcmp(filename.substr(filename.find_last_of(".") + 1).c_str(), "html")) {
 			m_new_page = filename;
@@ -703,13 +750,13 @@ public:
 
 	std::shared_ptr<litehtml::element> create_element(const litehtml::tchar_t* tag_name, const litehtml::string_map& attributes, const std::shared_ptr<litehtml::document>& doc) {
 		// printf("create_element: %s\n", tag_name);
-		litehtml::element element(doc);
-		element.set_tagName(tag_name);
+		std::shared_ptr<litehtml::html_tag> element = std::shared_ptr<litehtml::html_tag>(new litehtml::html_tag(doc));
+		element->set_tagName(tag_name);
 		if (!attributes.empty()) {
 			std::map<litehtml::tstring,litehtml::tstring>::const_iterator it;
 			for (it=attributes.begin(); it!=attributes.end(); ++it) {
 				// printf("   set_attr: %s=%s\n", it->first.c_str(), it->second.c_str());
-				element.set_attr(it->first.c_str(), it->second.c_str());
+				element->set_attr(it->first.c_str(), it->second.c_str());
 				if (!strcmp(tag_name, "meta")) {
 					if (it->first=="client-width") {
 						try {
@@ -749,6 +796,28 @@ public:
 						x_scroll_rect.width = static_cast<int>(m_vinfo->xres)-y_scrollbar_size-2;
 						x_scroll_rect.height = x_scrollbar_size-4;
 						y_scroll_rect.height = static_cast<int>(m_vinfo->yres)-x_scrollbar_size-2;
+					}
+				}
+			}
+
+			if (!strcmp(tag_name, "link")) {
+				if (!m_handle && element->get_attr("type") && !strcmp(element->get_attr("type"), "binary/elf")){
+					m_handle = dlopen((m_directory+element->get_attr("href")).c_str(), RTLD_LAZY);
+					if (!m_handle) {
+						printf("%s\n", dlerror());
+					}
+				}
+			} else if (!strcmp(tag_name, "text") && element->get_attr("href")) {
+				std::string filename = element->get_attr("href");
+				if (!strcmp(filename.substr(filename.find_last_of(".") + 1).c_str(), "elf")) {
+					if(m_handle && element->get_attr("type") && !strcmp(element->get_attr("type"), "function/always_run")) {
+						std::string target = element->get_attr("target");
+						if (!m_functions.count(target)) {
+							void* function = dlsym(m_handle, target.c_str());
+							if (function) {
+								m_functions[target] = function_structure_t({function, false, element->get_attr("rel") ? !strcmp(element->get_attr("rel"),"string") : false, element->get_attr("id")?element->get_attr("id"):""});
+							}
+						}
 					}
 				}
 			}
