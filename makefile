@@ -10,6 +10,12 @@ all:
 	g++ $(CWARNFLAGS) $(CFLAGS) -c main.cpp
 	g++ -o build/uxmux main.o $(LDFLAGS)
 
+litehtml:
+	cd lib/litehtml && \
+	cmake . && \
+	make && \
+	cd ../..
+
 extra:
 	gcc -fpie -c extra.c -o extra.o
 	gcc -o extra.elf -Wl,-pie,-E extra.o

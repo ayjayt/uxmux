@@ -1,7 +1,17 @@
 # C compiling extensions
+*.a
 *.o
 *.elf
 
 # Distribution / packaging
 build/
-lib/
+
+# Unneeded litehtml files
+lib/litehtml/CMakeCache.txt
+lib/litehtml/Makefile
+lib/litehtml/cmake_install.cmake
+lib/litehtml/CMakeFiles/
+lib/litehtml/containers/
+*.vcproj
+*.vcxproj
+*.filters
