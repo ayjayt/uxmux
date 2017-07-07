@@ -12,14 +12,11 @@
 
 #include "litehtml.h"
 #include "uxmux_container.h"
-#include "uxmux.h"
 
 /* BEWARE: It seems that these can change on reboot..
 		also note, they might be the same file */
 #define MOUSE_MOVE_FILE "/dev/input/event7"
 #define MOUSE_CLICK_FILE "/dev/input/mouse0"
-
-#define MOUSE_EXACT true
 
 #define FRAMEBUFFER_FILE "/dev/fb0"
 #define TTY_FILE "/dev/tty0"
@@ -56,10 +53,10 @@ void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, uxmux_container
 		// tim.tv_sec = 2;
 		// tim.tv_nsec = 0;
 		// if (nanosleep(&tim, &tim2)<0)
-		// 	printf("nanosleep failed!");
+		//	printf("nanosleep failed!");
 
-		/* Hold screen until enter key is pressed*/
-		if (click_ie&0x10) {
+		/* If mouse is invalid (mouse files failed loading), hold screen until enter key is pressed */
+		if (click_ie & MOUSE_INVALID) {
 			while (1) {
 				int c = getchar();
 				if (isspace(c) || c == EOF)
@@ -70,12 +67,12 @@ void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, uxmux_container
 
 /* Returns true when ready to stop program */
 bool update(litehtml::document::ptr doc, uxmux_container* painter, unsigned char click_ie, int x, int y, bool* redraw, bool* is_clicked) {
-	if (click_ie&0x10) return true;
+	if (click_ie & MOUSE_INVALID) return true;
 
 	litehtml::position::vector redraw_box;
 	*redraw = painter->update_scrollbars(doc, x, y, click_ie);
 	*redraw |= doc->on_mouse_over(x-painter->get_x_scroll(), y-painter->get_y_scroll(), /*client_x*/x-painter->get_x_scroll(), /*client_y*/y-painter->get_y_scroll(), redraw_box);
-	if (click_ie&0x1) {
+	if (click_ie & MOUSE_LEFT_CLICK) {
 		*is_clicked=true;
 		*redraw |= doc->on_lbutton_down(x-painter->get_x_scroll(), y-painter->get_y_scroll(), /*client_x*/x-painter->get_x_scroll(), /*client_y*/y-painter->get_y_scroll(), redraw_box);
 	} else if (*is_clicked) {
@@ -86,7 +83,7 @@ bool update(litehtml::document::ptr doc, uxmux_container* painter, unsigned char
 
 	*redraw |= painter->handle_functions(doc);
 
-	return click_ie&0x2;
+	return click_ie & MOUSE_RIGHT_CLICK;
 }
 
 /* Get framebuffer as a drawable object */
@@ -116,15 +113,15 @@ litehtml::uint_ptr get_drawable(struct fb_fix_screeninfo *_finfo, struct fb_var_
 		middle = data[0] & 0x4;
 
 	see: https://git.kernel.org/pub/scm/linux/kernel/git/torvalds/linux.git/tree/include/uapi/linux/input-event-codes.h
-	mmf (move): type={3 for exact | 2 for change}, time->time
+	mmf (move): type={3 for MOUSE_ABS (absolute) | 2 for MOUSE_REL (relative)}, time->time
 		code=0 -> x
 		code=1 -> y
 		value -> val
-		if MOUSE_EXACT: x, y treated as precise coordinates
+		if MOUSE_ABS: x, y treated as precise coordinates
 			else they are treated as change in position
 */
 unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned char last_click) {
-	if (!mcf || !mmf) return 0x10;
+	if (!mcf || !mmf) return MOUSE_INVALID;
 
 	fd_set read_fds, write_fds, except_fds;
 	struct timeval timeout;
@@ -143,6 +140,9 @@ unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned ch
 	#define MY_MAX 65343.0f
 	#define MX_SCL 82.0f
 	#define MY_SCL 109.0f
+
+	#define MOUSE_ABS 3
+	#define MOUSE_REL 2
 
 	/* Initialize file descriptor sets and set timeout */
 	#define fd_ready_select(fd, sec, usec) \
@@ -170,25 +170,29 @@ unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned ch
 	/* Set timeout to 1.0 microseconds */
 	fd_ready_select(mmf, 0, 1);
 
+	bool y_exact = false, x_exact = false;
+
 	/* Update mouse movement */
 	if (select(mmf + 1, &read_fds, &write_fds, &except_fds, &timeout) == 1) {
 		read(mmf, &move_ie, sizeof(struct input_event));
 		while (!move_ie.type)
 			read(mmf, &move_ie, sizeof(struct input_event));
 		// printf("time %ld.%06ld\ttype %d\tcode %d\tvalue %d\n", move_ie.time.tv_sec, move_ie.time.tv_usec, move_ie.type, move_ie.code, move_ie.value);
-		if (move_ie.type==(MOUSE_EXACT?3:2) && move_ie.code) {
+		if ((move_ie.type==MOUSE_ABS || move_ie.type==MOUSE_REL) && move_ie.code==1) {
 			y = move_ie.value;
 			y_flag = true;
-		} else if (move_ie.type==(MOUSE_EXACT?3:2)) {
+			y_exact = (move_ie.type==MOUSE_ABS);
+		} else if ((move_ie.type==MOUSE_ABS || move_ie.type==MOUSE_REL) && !move_ie.code) {
 			x = move_ie.value;
 			x_flag = true;
+			x_exact = (move_ie.type==MOUSE_ABS);
 		}
 		/* Set timeout to 1.0 microseconds */
 		fd_ready_select(mmf, 0, 1);
 		while (!y_flag || !x_flag) {
 			if (select(mmf + 1, &read_fds, &write_fds, &except_fds, &timeout) == 1) {
 				read(mmf, &move_ie, sizeof(struct input_event));
-				while (move_ie.type!=(MOUSE_EXACT?3:2)) {
+				while (move_ie.type!=MOUSE_ABS && move_ie.type!=MOUSE_REL) {
 					/* Set timeout to 1.0 microseconds */
 					fd_ready_select(mmf, 0, 1);
 					if (select(mmf + 1, &read_fds, &write_fds, &except_fds, &timeout) == 1)
@@ -196,12 +200,14 @@ unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned ch
 					else break;
 				}
 				// printf("time %ld.%06ld\ttype %d\tcode %d\tvalue %d\n", move_ie.time.tv_sec, move_ie.time.tv_usec, move_ie.type, move_ie.code, move_ie.value);
-				if (move_ie.type && move_ie.code && !y_flag) {
+				if (move_ie.type && move_ie.code==1 && !y_flag) {
 					y = move_ie.value;
 					y_flag = true;
+					y_exact = (move_ie.type==MOUSE_ABS);
 				} else if (move_ie.type && !move_ie.code && !x_flag) {
 					x = move_ie.value;
 					x_flag = true;
+					x_exact = (move_ie.type==MOUSE_ABS);
 				}
 				/* Set timeout to 1.0 microseconds */
 				fd_ready_select(mmf, 0, 1);
@@ -218,30 +224,34 @@ unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned ch
 		}
 	}
 
-	#if MOUSE_EXACT
-		if (x>MX_MAX)x=MX_MAX;
-		if (x<MX_MIN)x=MX_MIN;
+	if (y_exact && y_flag) {
 		if (y>MY_MAX)y=MY_MAX;
 		if (y<MY_MIN)y=MY_MIN;
 
-		x = static_cast<float>(x-MX_MIN)/(MX_MAX-MX_MIN)*TARGET_X;
-		if (x>11) *x_ret = x;
-
 		y = static_cast<float>(y-MY_MIN)/(MY_MAX-MY_MIN)*TARGET_Y;
 		if (y>7) *y_ret = y;
-	#else
-		if (x_flag)
-			*x_ret += x*120;
-		if (y_flag)
-			*y_ret += y*120;
+	} else if (y_flag) {
+		*y_ret += y*120;
+
+		if (*y_ret>MY_MAX)*y_ret=MY_MAX;
+		if (*y_ret<MY_MIN)*y_ret=MY_MIN;
+	}
+
+	if (x_exact && x_flag) {
+		if (x>MX_MAX)x=MX_MAX;
+		if (x<MX_MIN)x=MX_MIN;
+
+		x = static_cast<float>(x-MX_MIN)/(MX_MAX-MX_MIN)*TARGET_X;
+		if (x>11) *x_ret = x;
+	} else if (x_flag) {
+		*x_ret += x*120;
 
 		if (*x_ret>MX_MAX)*x_ret=MX_MAX;
 		if (*x_ret<MX_MIN)*x_ret=MX_MIN;
-		if (*y_ret>MY_MAX)*y_ret=MY_MAX;
-		if (*y_ret<MY_MIN)*y_ret=MY_MIN;
-	#endif
+	}
 
-	return click_ie[0]&(~0x10);
+	/* Return the click type while forcing the invalid flag low */
+	return click_ie[0]&(~MOUSE_INVALID);
 }
 
 #endif

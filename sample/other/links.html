@@ -71,10 +71,12 @@
 
   <br><h2>Always Run Functions:</h2>
   <p>To use an always running external function, use the html tag:<br><code>&lt;link type="binary/elf" href="FILE_NAME.elf"></code><br>then provide the text tag:<br><code>&lt;text href="FILE_NAME.elf" type="function/always_run" target="FUNCTION_NAME_FROM_ELF"></code>
-  <br><br>An always running function is started on page loading to run continuously and may be configured to return a string which is to be displayed in the html text tag; to enable this provide a <code>rel="string"</code> argument in the text tag and write your function of the form:
+  <br><br>An always running function is started on page loading to run continuously and may be configured to return a string which is to be displayed in the html text tag; to enable this provide a <code>rel="string"</code> and an <code>id="YOUR_UNIQUE_ID"</code> argument in the text tag and write your function of the form:
   <br><code>void FUNCTION_NAME_FROM_ELF(char *buf, int size)</code></p>
   <p><br>Example:</p>
-  <text id="test" href="../../extra.elf" rel="string" type="function/always_run" target="func_always">func_always</text>
+  &lt;text id="test" href="../../extra.elf" rel="string" type="function/always_run" target="func_always">0&lt;/text>
+  <br> gives <br>
+  <text id="test" href="../../extra.elf" rel="string" type="function/always_run" target="func_always">0</text>
   </p>
 
   </body>
