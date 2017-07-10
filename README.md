@@ -14,11 +14,14 @@ libpng version 1.6.28                         <br/>
 3. Run the compiled program from "./build" using `./uxmux <html_file> <master_css>`
 
 ### Cross-compiling for BBB steps, assuming "." is project directory:
-1. Configure the installation directory for the toolchain by changing "BASE\_DIR" in "./setup_toolchain.sh" and "./makefile"
-2. Download and build the toolchain by running `./setup_toolchain.sh`
- (you will need to run `chmod +x ./setup_toolchain.sh` to do so, as it is recommended
- that you understand the script or at least configure the installation directory before executing it)
-3. Cross-compile the liteHTML_fb project from "." using `make cross_compile`
-4. Copy the compiled program from "./final" to the target device
 
----
+#### Toolchain setup:
+1. Configure the installation directory for the toolchain by changing "BASE\_DIR" in "./setup_toolchain.sh" and "./makefile"
+2. Make sure you have the arm-linux-gnueabihf toolchain and compilers installed (example: `apt-get install gcc-arm-linux-gnueabihf g++-arm-linux-gnueabihf`)
+3. Download and build the rest of the toolchain by running `./setup_toolchain.sh`
+ (you will need to run `chmod +x ./setup_toolchain.sh` to do so, as it is recommended that you understand the script
+ or at least configure the installation directory before executing it)
+
+#### Cross-compiling:
+1. Cross-compile the liteHTML_fb project from "." using `make cross_compile`
+2. Copy the compiled program from "./final" to the target device

@@ -2,7 +2,9 @@
 
 export BASE_DIR=/root/Desktop
 
+echo ""
 echo "Building Toolchain in ${BASE_DIR}"
+echo ""
 
 export ZLIB_SRC=${BASE_DIR}/zlib/src
 
@@ -25,7 +27,10 @@ export CXX=${CROSS}-g++
 #                 Setup Z Library                   #
 #####################################################
 
+echo "---------------------------------"
+echo ""
 echo "Building Z Library"
+echo ""
 
 if [ -d "${BASE_DIR}/zlib" ]
 then
@@ -62,7 +67,10 @@ make install
 #                Setup PNG Library                  #
 #####################################################
 
+echo "---------------------------------"
+echo ""
 echo "Building PNG Library"
+echo ""
 
 if [ -d "${BASE_DIR}/png" ]
 then
@@ -104,7 +112,10 @@ make install
 #              Setup Freetype Library               #
 #####################################################
 
+echo "---------------------------------"
+echo ""
 echo "Building Freetype Library"
+echo ""
 
 if [ -d "${BASE_DIR}/freetype" ]
 then
@@ -142,4 +153,7 @@ make install
 
 #####################################################
 
+echo "---------------------------------"
+echo ""
 echo "Building Toolchain Complete"
+echo ""
