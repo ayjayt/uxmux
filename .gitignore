@@ -5,8 +5,10 @@
 
 # Distribution / packaging
 build/
+final/
 
 # Unneeded litehtml files
+lib/litehtml/final
 lib/litehtml/CMakeCache.txt
 lib/litehtml/Makefile
 lib/litehtml/cmake_install.cmake
