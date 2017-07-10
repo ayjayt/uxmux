@@ -8,9 +8,11 @@
 /* libpng16 */
 # include <png.h>
 
-#define FH_ERROR_OK     0
+#define FH_ERROR_OK     0   /* no error occurred */
 #define FH_ERROR_FILE   1   /* read/access error */
 #define FH_ERROR_FORMAT 2   /* file format error */
+
+/* TODO: Add support for other image types */
 
 class image_loader {
 private:
@@ -31,21 +33,43 @@ private:
     png_structp m_png_ptr;
     png_infop m_info_ptr;
     int m_number_of_passes;
-    png_bytep* m_row_pointers;
+    png_bytep *m_row_pointers;
 
 public:
-    /* Use of initializer list prevents unnecessary calls to default constructors */
+
+    ///////////////////////////////////////////////////////////
+
+    /* All member functions defined within this class, as it saves file size when compiling
+        Listed here are method declarations for reader convenience */
+
+    // image_loader();
+    // ~image_loader();
+
+    // void destroy();
+    // int copy_to_framebuffer(void *hdc, struct fb_fix_screeninfo *finfo, struct fb_var_screeninfo *vinfo, int posx, int posy);
+    // int load_image(const char *file_name);
+    // int image_size(const char *file_name, int *x, int *y);
+    // int load_png(const char *file_name);
+    // int png_size(const char *name, int *x, int *y);
+
+    ///////////////////////////////////////////////////////////
+
+    /* Constructor:
+        use of initializer list prevents unnecessary calls to default constructors of member variables */
     image_loader() :
         m_file_type(none), m_png_ptr(0), m_info_ptr(0), m_row_pointers(0)
     {
         // printf("ctor image_loader\n");
     }
 
+    /* Destructor */
     ~image_loader() {
         // printf("dtor ~image_loader\n");
         destroy();
     }
 
+
+    /* Clean up member files */
     void destroy() {
         if (m_png_ptr)
             png_destroy_read_struct(&m_png_ptr, m_info_ptr?(&m_info_ptr):((png_infopp)NULL), (png_infopp)NULL);
@@ -61,13 +85,16 @@ public:
         m_row_pointers = 0;
     }
 
-    int copy_to_framebuffer(void* hdc, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo, int posx, int posy) {
+
+
+    /* Copy the loaded image to the framebuffer */
+    int copy_to_framebuffer(void *hdc, struct fb_fix_screeninfo *finfo, struct fb_var_screeninfo *vinfo, int posx, int posy) {
         if (m_file_type == png) {
             int x, y;
             for (y = posy, m_y=0; m_y<static_cast<int>(m_height); y++, m_y++) {
-                png_byte* row = m_row_pointers[m_y];
+                png_byte *row = m_row_pointers[m_y];
                 for (x = posx, m_x=0; m_x<static_cast<int>(m_width); x++, m_x++) {
-                    png_byte* ptr = &(row[m_x*4]);
+                    png_byte *ptr = &(row[m_x*4]);
                     /* RGBA: ptr[0], ptr[1], ptr[2], ptr[3] */
                     if (x < 0 || y < 0 || x >= static_cast<int>(vinfo->xres) || y >= static_cast<int>(vinfo->yres))
                         continue;
@@ -86,20 +113,27 @@ public:
         return(FH_ERROR_OK);
     }
 
-    int load_image(const char* file_name) {
+
+
+    /* Load the given image */
+    int load_image(const char *file_name) {
         /* TODO: Support other types */
         destroy();
         m_file_type = png;
         return load_png(file_name);
     }
 
-    int image_size(const char* file_name, int *x, int *y) {
+    /* Get the size of the given image */
+    int image_size(const char *file_name, int *x, int *y) {
         /* TODO: Support other types */
         m_file_type = png;
         return png_size(file_name, x, y);
     }
 
-    int load_png(const char* file_name) {
+
+
+    /* Load a png image */
+    int load_png(const char *file_name) {
         char header[8];    // 8 is the maximum size that can be checked
 
         /* open file and test for it being a png */
@@ -189,6 +223,9 @@ public:
         return(FH_ERROR_OK);
     }
 
+
+
+    /* Get the size of the given png image */
     int png_size(const char *name, int *x, int *y) {
         png_structp png_ptr;
         png_infop info_ptr;

@@ -41,7 +41,7 @@ private:
 	typedef struct font_structure font_structure_t;
 
 	struct function_structure {
-		void* function; // Pointer to the external function
+		void *function; // Pointer to the external function
 		bool dynamic; // Flag to show whether it is dynamic (i.e. should be removed if it returns 0)
 		bool ret_string; // Flag to show whether an always running (not dynamic) function returns a string
 		std::string id; // HTML tag id to write a returned string from the function
@@ -52,11 +52,11 @@ private:
 	std::unordered_map<std::string, function_structure_t> m_functions; // Running external functions
 
 	image_loader m_image_loader; // For drawing images
-	void* m_handle; // Elf handle for loading external functions
+	void *m_handle; // Elf handle for loading external functions
 
 	/* Framebuffer info variables */
-	struct fb_fix_screeninfo* m_finfo;
-	struct fb_var_screeninfo* m_vinfo;
+	struct fb_fix_screeninfo *m_finfo;
+	struct fb_var_screeninfo *m_vinfo;
 
 	font_structure_t m_default_font; // Default font for use when other fonts not found
 
@@ -68,7 +68,7 @@ private:
 	FT_Face m_face;
 	FT_GlyphSlot m_slot;
 
-	uint32_t* m_back_buffer; // Screen buffer for double buffering
+	uint32_t *m_back_buffer; // Screen buffer for double buffering
 	int m_client_width, m_client_height; // Screen size information
 
 	/* Scrollbar related info (x = horizontal bar, y = vertical bar)*/
@@ -89,7 +89,7 @@ public:
 	/* All member functions defined within this class, as it saves file size when compiling
 		Listed here are method declarations for reader convenience */
 
-	// uxmux_container(std::string prefix, std::string font_directory, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo);
+	// uxmux_container(std::string prefix, std::string font_directory, struct fb_fix_screeninfo *finfo, struct fb_var_screeninfo *vinfo);
 	// ~uxmux_container(void);
 
 	// void swap_buffer(litehtml::uint_ptr src_hdc, litehtml::uint_ptr dest_hdc, struct fb_var_screeninfo *vinfo, struct fb_fix_screeninfo *finfo);
@@ -99,7 +99,7 @@ public:
 	// bool update_scrollbars(litehtml::document::ptr doc, int xpos, int ypos, unsigned char click);
 	// void draw_rect(litehtml::uint_ptr hdc, const litehtml::position& rect, unsigned char red, unsigned char green, unsigned char blue);
 	// void draw_rect(litehtml::uint_ptr hdc, int xpos, int ypos, int width, int height, unsigned char red, unsigned char green, unsigned char blue);
-	// bool load_font(font_structure_t* font_struct);
+	// bool load_font(font_structure_t *font_struct);
 
 	// std::string get_new_page();
 	// std::string get_new_page_alt();
@@ -114,29 +114,29 @@ public:
 	/* The following are from abstract class "litehtml::document_container" in "litehtml/src/html.h"
 	   see also: https://github.com/litehtml/litehtml/wiki/document_container */
 
-	// litehtml::uint_ptr create_font(const litehtml::tchar_t* faceName, int size, int weight, litehtml::font_style italic, unsigned int decoration, litehtml::font_metrics* fm) override;
+	// litehtml::uint_ptr create_font(const litehtml::tchar_t *faceName, int size, int weight, litehtml::font_style italic, unsigned int decoration, litehtml::font_metrics *fm) override;
 	// void delete_font(litehtml::uint_ptr hFont) override;
-	// int text_width(const litehtml::tchar_t* text, litehtml::uint_ptr hFont) override;
-	// void draw_text(litehtml::uint_ptr hdc, const litehtml::tchar_t* text, litehtml::uint_ptr hFont, litehtml::web_color color, const litehtml::position& pos) override;
+	// int text_width(const litehtml::tchar_t *text, litehtml::uint_ptr hFont) override;
+	// void draw_text(litehtml::uint_ptr hdc, const litehtml::tchar_t *text, litehtml::uint_ptr hFont, litehtml::web_color color, const litehtml::position& pos) override;
 	// int pt_to_px(int pt) override;
 	// int get_default_font_size() const override;
 	// const litehtml::tchar_t* get_default_font_name() const override;
 	// void draw_list_marker(litehtml::uint_ptr hdc, const litehtml::list_marker& marker) override;
-	// void load_image(const litehtml::tchar_t* src, const litehtml::tchar_t* baseurl, bool redraw_on_ready) override;
-	// void get_image_size(const litehtml::tchar_t* src, const litehtml::tchar_t* baseurl, litehtml::size& sz) override;
+	// void load_image(const litehtml::tchar_t *src, const litehtml::tchar_t *baseurl, bool redraw_on_ready) override;
+	// void get_image_size(const litehtml::tchar_t *src, const litehtml::tchar_t *baseurl, litehtml::size& sz) override;
 	// void draw_background(litehtml::uint_ptr hdc, const litehtml::background_paint& bg) override;
 	// void draw_borders(litehtml::uint_ptr hdc, const litehtml::borders& borders, const litehtml::position& draw_pos, bool root) override;
-	// void set_caption(const litehtml::tchar_t* caption) override;
-	// void set_base_url(const litehtml::tchar_t* base_url) override;
+	// void set_caption(const litehtml::tchar_t *caption) override;
+	// void set_base_url(const litehtml::tchar_t *base_url) override;
 	// void link(const std::shared_ptr<litehtml::document>& doc, const litehtml::element::ptr& el) override;
-	// void on_anchor_click(const litehtml::tchar_t* url, const litehtml::element::ptr& el) override;
-	// void set_cursor(const litehtml::tchar_t* cursor) override;
+	// void on_anchor_click(const litehtml::tchar_t *url, const litehtml::element::ptr& el) override;
+	// void set_cursor(const litehtml::tchar_t *cursor) override;
 	// void transform_text(litehtml::tstring& text, litehtml::text_transform tt) override;
 	// void import_css(litehtml::tstring& text, const litehtml::tstring& url, litehtml::tstring& baseurl) override;
 	// void set_clip(const litehtml::position& pos, const litehtml::border_radiuses& bdr_radius, bool valid_x, bool valid_y) override;
 	// void del_clip() override;
 	// void get_client_rect(litehtml::position& client) const override;
-	// std::shared_ptr<litehtml::element> create_element(const litehtml::tchar_t* tag_name, const litehtml::string_map& attributes, const std::shared_ptr<litehtml::document>& doc) override;
+	// std::shared_ptr<litehtml::element> create_element(const litehtml::tchar_t *tag_name, const litehtml::string_map& attributes, const std::shared_ptr<litehtml::document>& doc) override;
 	// void get_media_features(litehtml::media_features& media) const override;
 	// void get_language(litehtml::tstring& language,litehtml::tstring& culture) const override;
 
@@ -144,7 +144,7 @@ public:
 
 	/* Constructor:
 		use of initializer list prevents unnecessary calls to default constructors of member variables */
-	uxmux_container(std::string prefix, std::string font_directory, struct fb_fix_screeninfo* finfo, struct fb_var_screeninfo* vinfo) :
+	uxmux_container(std::string prefix, std::string font_directory, struct fb_fix_screeninfo *finfo, struct fb_var_screeninfo *vinfo) :
 		m_handle(0),
 		m_finfo(finfo), m_vinfo(vinfo),
 		m_default_font({0, false}),
@@ -183,8 +183,6 @@ public:
 		/* Clear the screen to white */
 		draw_rect(m_back_buffer, 0, 0, static_cast<int>(m_vinfo->xres), static_cast<int>(m_vinfo->yres), 0xff, 0xff, 0xff);
 	}
-
-
 
 	/* Destructor */
 	~uxmux_container(void) {
@@ -529,7 +527,7 @@ public:
 
 	/* Check that a font structure is valid and loads the associated font,
 		then returns a flag indicating if operation was successful */
-	bool load_font(font_structure_t* font_struct) {
+	bool load_font(font_structure_t *font_struct) {
 		/* Get the font from the font structure*/
 		m_face = font_struct->font;
 
@@ -597,7 +595,7 @@ public:
 
 
 
-	litehtml::uint_ptr create_font(const litehtml::tchar_t* faceName, int size, int weight, litehtml::font_style italic, unsigned int decoration, litehtml::font_metrics* fm) {
+	litehtml::uint_ptr create_font(const litehtml::tchar_t *faceName, int size, int weight, litehtml::font_style italic, unsigned int decoration, litehtml::font_metrics *fm) {
 		// printf("create_font: %s, size=%d, weight=%d, style=%d, decoration=%d\n", faceName, size, weight, italic, decoration);
 
 		if (faceName) {
@@ -726,7 +724,9 @@ public:
 			// printf("      height=%d, ascent=%d, descent=%d, x_height=%d\n", fm->height, fm->ascent, fm->descent, fm->x_height);
 
 			return reinterpret_cast<litehtml::uint_ptr>(&m_fonts[name+mod+std::to_string(decoration)+std::to_string(size)]);
-		}
+
+		} else if (!load_font(&m_default_font))
+			throw std::invalid_argument("CRITICAL FAIL: no fonts found");
 
 		return 0;
 	}
@@ -735,7 +735,7 @@ public:
 		// printf("delete_font\n");
 	}
 
-	int text_width(const litehtml::tchar_t* text, litehtml::uint_ptr hFont) {
+	int text_width(const litehtml::tchar_t *text, litehtml::uint_ptr hFont) {
 		// printf("text_width\n");
 
 		if (!load_font(reinterpret_cast<font_structure_t*>(hFont)))
@@ -771,7 +771,7 @@ public:
 		return 0;
 	}
 
-	void draw_text(litehtml::uint_ptr hdc, const litehtml::tchar_t* text, litehtml::uint_ptr hFont, litehtml::web_color color, const litehtml::position& pos) {
+	void draw_text(litehtml::uint_ptr hdc, const litehtml::tchar_t *text, litehtml::uint_ptr hFont, litehtml::web_color color, const litehtml::position& pos) {
 		// printf("draw_text: %s, at (%d, %d), size (%d, %d), color (%d, %d, %d)\n", text, pos.x, pos.y, pos.width, pos.height, static_cast<int>(color.red), static_cast<int>(color.green), static_cast<int>(color.blue));
 
 		if (!load_font(reinterpret_cast<font_structure_t*>(hFont)))
@@ -908,11 +908,11 @@ public:
 		draw_rect(hdc, marker.pos.x, marker.pos.y, marker.pos.width, marker.pos.height, marker.color.red, marker.color.green, marker.color.blue);
 	}
 
-	void load_image(const litehtml::tchar_t* src, const litehtml::tchar_t* baseurl, bool redraw_on_ready) {
+	void load_image(const litehtml::tchar_t *src, const litehtml::tchar_t *baseurl, bool redraw_on_ready) {
 		// printf("load_image: %s\n", src);
 	}
 
-	void get_image_size(const litehtml::tchar_t* src, const litehtml::tchar_t* baseurl, litehtml::size& sz) {
+	void get_image_size(const litehtml::tchar_t *src, const litehtml::tchar_t *baseurl, litehtml::size& sz) {
 		// printf("get_image_size: %s\n", src);
 		m_image_loader.image_size((m_directory+src).c_str(), &sz.width, &sz.height);
 	}
@@ -950,11 +950,11 @@ public:
 		draw_rect(hdc, draw_pos.x+draw_pos.width-borders.right.width, draw_pos.y, borders.right.width, draw_pos.height, borders.right.color.red, borders.right.color.green, borders.right.color.blue);
 	}
 
-	void set_caption(const litehtml::tchar_t* caption) {
+	void set_caption(const litehtml::tchar_t *caption) {
 		// printf("set_caption: %s\n", caption);
 	}
 
-	void set_base_url(const litehtml::tchar_t* base_url) {
+	void set_base_url(const litehtml::tchar_t *base_url) {
 		// printf("set_base_url\n");
 	}
 
@@ -962,7 +962,7 @@ public:
 		// printf("link: rel=%s, type=%s, href=%s\n", el->get_attr("rel"), el->get_attr("type"), el->get_attr("href"));
 	}
 
-	void on_anchor_click(const litehtml::tchar_t* url, const litehtml::element::ptr& el) {
+	void on_anchor_click(const litehtml::tchar_t *url, const litehtml::element::ptr& el) {
 		// printf("on_anchor_click: %s\n", url);
 		std::string filename = url;
 		if (!strcmp(filename.substr(filename.find_last_of(".") + 1).c_str(), "elf")) {
@@ -976,7 +976,7 @@ public:
 				} else if (!strcmp(el->get_attr("type"), "function/dynamic")) {
 					std::string target = el->get_attr("target")?el->get_attr("target"):"";
 					if (!m_functions.count(target)) {
-						void* function = dlsym(m_handle, target.c_str());
+						void *function = dlsym(m_handle, target.c_str());
 						if (function)
 							m_functions[target] = function_structure_t({function, true, false, ""});
 					}
@@ -991,7 +991,7 @@ public:
 		}
 	}
 
-	void set_cursor(const litehtml::tchar_t* cursor) {
+	void set_cursor(const litehtml::tchar_t *cursor) {
 		// printf("set_cursor: %s\n", cursor);
 		if (strcmp(cursor, "auto"))
 			m_cursor = true;
@@ -1032,7 +1032,7 @@ public:
 		client.height = m_client_height - (x_scrollable?x_scrollbar_size:0);
 	}
 
-	std::shared_ptr<litehtml::element> create_element(const litehtml::tchar_t* tag_name, const litehtml::string_map& attributes, const std::shared_ptr<litehtml::document>& doc) {
+	std::shared_ptr<litehtml::element> create_element(const litehtml::tchar_t *tag_name, const litehtml::string_map& attributes, const std::shared_ptr<litehtml::document>& doc) {
 		// printf("create_element: %s\n", tag_name);
 		std::shared_ptr<litehtml::html_tag> element = std::shared_ptr<litehtml::html_tag>(new litehtml::html_tag(doc));
 		element->set_tagName(tag_name);
@@ -1097,7 +1097,7 @@ public:
 					if(m_handle && element->get_attr("type") && !strcmp(element->get_attr("type"), "function/always_run")) {
 						std::string target = element->get_attr("target");
 						if (!m_functions.count(target)) {
-							void* function = dlsym(m_handle, target.c_str());
+							void *function = dlsym(m_handle, target.c_str());
 							if (function) {
 								m_functions[target] = function_structure_t({function, false, element->get_attr("rel") ? !strcmp(element->get_attr("rel"),"string") : false, element->get_attr("id")?element->get_attr("id"):""});
 							}

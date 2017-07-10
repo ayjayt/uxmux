@@ -4,7 +4,7 @@
 	which prevents screen freeze should an error occur */
 #define UXMUX_SAFE_MODE true
 
-int main(int argc, char* argv[]) {
+int main(int argc, char *argv[]) {
 	if (argc!=3) {
 		printf("usage: %s <html_file> <master_css>\n", argv[0]);
 	} else {
@@ -57,7 +57,7 @@ int main(int argc, char* argv[]) {
 
 		/* Setup litehtml variables
 		   See: https://github.com/litehtml/litehtml/wiki/How-to-use-litehtml */
-		uxmux_container* painter = new uxmux_container(prefix, "", &finfo, &vinfo);
+		uxmux_container *painter = new uxmux_container(prefix, "", &finfo, &vinfo);
 		litehtml::context context;
 		// printf("load_master_stylesheet\n");
 		context.load_master_stylesheet(css_buffer.str().c_str());
