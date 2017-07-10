@@ -16,6 +16,8 @@ libpng version 1.6.28                         <br/>
 ### Cross-compiling for BBB steps, assuming "." is project directory:
 1. Configure the installation directory for the toolchain by changing "BASE\_DIR" in "./setup_toolchain.sh" and "./makefile"
 2. Download and build the toolchain by running `./setup_toolchain.sh`
+ (you will need to run `chmod +x ./setup_toolchain.sh` to do so, as it is recommended
+ that you understand the script or at least configure the installation directory before executing it)
 3. Cross-compile the liteHTML_fb project from "." using `make cross_compile`
 4. Copy the compiled program from "./final" to the target device
 
