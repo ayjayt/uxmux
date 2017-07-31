@@ -184,8 +184,8 @@ unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned ch
 	bool y_exact = false, x_exact = false;
 
 	/* Update mouse movement */
-	/* TODO: The y/x_flag thing is not needed as instead of `while (!move_ie.type)` we can just do
-			`while (move_ie.type!=MOUSE_ABS && move_ie.type!=MOUSE_REL)` from the start.
+	/* TODO: The extra while loop pass through is not needed as instead of `while (!move_ie.type)` we can just do
+			`while (move_ie.type!=MOUSE_ABS && move_ie.type!=MOUSE_REL)` from the start (probably in `do while` loop).
 				Not making the change now as I don't have time to test, in case it breaks something */
 	if (select(mmf + 1, &read_fds, &write_fds, &except_fds, &timeout) == 1) {
 		read(mmf, &move_ie, sizeof(struct input_event));

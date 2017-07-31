@@ -604,6 +604,7 @@ public:
 			std::string str = faceName;
 			std::stringstream ss(str);
 			std::string name;
+			/* Parse input into a font name */
 			while (ss >> name) {
 				if (ss.peek() == ',' || ss.peek() == '.' || ss.peek() == ' ') {
 					ss.ignore();
@@ -614,6 +615,7 @@ public:
 			name.erase(std::remove(name.begin(), name.end(), ','), name.end());
 			// printf("   Parsed Name : %s\n", name.c_str());
 
+			/* Try some common font extensions based on extra font parameters */
 			std::string mod = "";
 			std::string modalt = "-Regular";
 			if (italic && weight>=600) {
@@ -629,34 +631,43 @@ public:
 
 			bool isdefault = false;
 			if (m_fonts.count(name+mod+std::to_string(decoration)+std::to_string(size))) {
-				/* If font already exists, retrieve it */
+				/* If font already exists, retrieve it
+					NOTE: we never save fonts using modalt so no need to check when loading */
 				isdefault = load_font(&m_fonts[name+mod+std::to_string(decoration)+std::to_string(size)]);
-				/* Note we never save fonts using modalt so no need to check when loading */
 			}
 
 
 			/* Try to find the font
-				TODO:
-				NOTE: use of SYSTEM_FONT_DIR may not be needed */
+				TODO: use of SYSTEM_FONT_DIR may not be needed */
 			if (!isdefault) {
+
+				/* Check ttf and otf extentions for mod */
+
 				if (FT_New_Face(m_library, (m_font_directory+name+mod+".ttf").c_str(), 0, &m_face))
 				if (FT_New_Face(m_library, (m_font_directory+name+mod+".otf").c_str(), 0, &m_face)) {
 					// printf("   Error loading: fonts/%s.ttf/.otf\n   Looking in system instead..\n", (name+mod).c_str());
 					if (FT_New_Face(m_library, (SYSTEM_FONT_DIR+name+mod+".ttf").c_str(), 0, &m_face))
 					if (FT_New_Face(m_library, (SYSTEM_FONT_DIR+name+mod+".otf").c_str(), 0, &m_face)) {
 						// printf("   Not found. Trying alternative: fonts/%s.ttf/.otf\n", (name+modalt).c_str());
+
+						/* Check ttf and otf extentions for altmod */
+
 						if (FT_New_Face(m_library, (m_font_directory+name+modalt+".ttf").c_str(), 0, &m_face))
 						if (FT_New_Face(m_library, (m_font_directory+name+modalt+".otf").c_str(), 0, &m_face)) {
 							// printf("   Error loading: fonts/%s.ttf/.otf\n   Looking in system instead..\n", (name+modalt).c_str());
 							if (FT_New_Face(m_library, (SYSTEM_FONT_DIR+name+modalt+".ttf").c_str(), 0, &m_face))
 							if (FT_New_Face(m_library, (SYSTEM_FONT_DIR+name+modalt+".otf").c_str(), 0, &m_face)) {
 								printf("   WARNING: %s.ttf/.otf (alt %s.ttf/.otf) could not be found.\n", (name+mod).c_str(), (name+modalt).c_str());
-								/* Try loading default font */
+
+								/* Try loading default font
+									TODO: maybe we should check plain name without any mod (i.e m_font_directory+name+".ttf")
+									before checking for the default? */
 								name = get_default_font_name();
 								if (m_fonts.count(name+mod+std::to_string(decoration)+std::to_string(size))) {
 									isdefault = load_font(&m_fonts[name+mod+std::to_string(decoration)+std::to_string(size)]);
 								}
 
+								/* If default failed, it could be because we haven't loaded it, so try loading the default now */
 								if (!isdefault) {
 									if (FT_New_Face(m_library, (m_font_directory+name+mod+".ttf").c_str(), 0, &m_face))
 									if (FT_New_Face(m_library, (m_font_directory+name+mod+".otf").c_str(), 0, &m_face)) {
@@ -685,6 +696,7 @@ public:
 					}
 				}
 
+				/* Save the font info if we found a new valid one */
 				if (!isdefault && m_face) {
 					FT_Set_Char_Size(m_face, 0, size*16, 300, 300);
 					m_face->generic.data = reinterpret_cast<void*>(decoration);
@@ -705,13 +717,15 @@ public:
 				throw std::invalid_argument("CRITICAL FAIL: no fonts found");
 			}
 
-			/* set up matrix */
+			/* Set up matrix */
 			FT_Matrix matrix;
 			// float angle = 0;
 			matrix.xx = 0x10000L;//(FT_Fixed)(cos(angle) * 0x10000L);
 			matrix.xy = 0;//(FT_Fixed)(-sin(angle) * 0x10000L);
 			matrix.yx = 0;//(FT_Fixed)(sin(angle) * 0x10000L);
 			matrix.yy = 0x10000L;//(FT_Fixed)(cos(angle) * 0x10000L);
+
+			/* Find necessary metrics to pass to LiteHtml so it can accurately calculate text position */
 
 			fm->height = m_face->size->metrics.height/64;
 			fm->ascent = m_face->size->metrics.ascender/32 - abs(m_face->size->metrics.descender/64);
@@ -728,12 +742,14 @@ public:
 
 			// printf("      height=%d, ascent=%d, descent=%d, x_height=%d\n", fm->height, fm->ascent, fm->descent, fm->x_height);
 
+			/* Return the font */
 			return reinterpret_cast<litehtml::uint_ptr>(&m_fonts[name+mod+std::to_string(decoration)+std::to_string(size)]);
 
-		} else if (!load_font(&m_default_font))
+		/* If no font name given, try to load default font */
+		} else if (!load_font(&m_default_font)) {
 			throw std::invalid_argument("CRITICAL FAIL: no fonts found");
 
-		return 0;
+		return reinterpret_cast<litehtml::uint_ptr>(&m_default_font);
 	}
 
 	void delete_font(litehtml::uint_ptr hFont) {
@@ -845,22 +861,22 @@ public:
 				}
 			}
 
-			/* increment pen position */
+			/* Increment pen position */
 			pen.x += m_slot->advance.x;
 			pen.y += m_slot->advance.y;
 		}
 
-		/* draw underline */
+		/* Draw underline */
 		if (reinterpret_cast<long>(m_face->generic.data)&litehtml::font_decoration_underline) {
 			draw_rect(hdc, xpos, ypos+pos.height-1, pos.width, 1, color.red, color.green, color.blue);
 		}
 
-		/* draw strikethrough */
+		/* Draw strikethrough */
 		if (reinterpret_cast<long>(m_face->generic.data)&litehtml::font_decoration_linethrough) {
 			draw_rect(hdc, xpos, ypos+pos.height/2, pos.width, 1, color.red, color.green, color.blue);
 		}
 
-		/* draw overline */
+		/* Draw overline */
 		if (reinterpret_cast<long>(m_face->generic.data)&litehtml::font_decoration_overline) {
 			draw_rect(hdc, xpos, ypos, pos.width, 1, color.red, color.green, color.blue);
 		}
@@ -969,16 +985,20 @@ public:
 
 	void on_anchor_click(const litehtml::tchar_t *url, const litehtml::element::ptr& el) {
 		// printf("on_anchor_click: %s\n", url);
+
 		std::string filename = url;
 		if (!strcmp(filename.substr(filename.find_last_of(".") + 1).c_str(), "elf")) {
+			/* Check m_handle, as .elf anchors should only work if external functions were loaded into m_handle */
 			if(m_handle && el->get_attr("type")) {
 				if (!strcmp(el->get_attr("type"), "function/static")) {
+					/* Execute a static function immediately */
 					void(*target)() = reinterpret_cast<void(*)()>(dlsym(m_handle, el->get_attr("target")));
 					if (!target) {
 						printf("%s\n", dlerror());
 					} else
 						target();
 				} else if (!strcmp(el->get_attr("type"), "function/dynamic")) {
+					/* Store a dynamic function to be executed each update */
 					std::string target = el->get_attr("target")?el->get_attr("target"):"";
 					if (!m_functions.count(target)) {
 						void *function = dlsym(m_handle, target.c_str());
@@ -988,10 +1008,13 @@ public:
 				}
 			}
 		} else if (!strcmp(filename.substr(filename.find_last_of(".") + 1).c_str(), "html")) {
+			/* A .html page was referenced explicitly */
 			m_new_page = filename;
 			m_new_page_alt = "";
 		} else if (filename != "") {
+			/* Assume a .html page was referenced */
 			m_new_page = filename+".html";
+			/* Check for a directory with an index.html as alternative */
 			m_new_page_alt = filename+"/index.html";
 		}
 	}
@@ -999,6 +1022,7 @@ public:
 	void set_cursor(const litehtml::tchar_t *cursor) {
 		// printf("set_cursor: %s\n", cursor);
 		if (strcmp(cursor, "auto"))
+			/* Specify that the mouse is hovering over something */
 			m_cursor = true;
 		else if (!m_scroll_cursor)
 			m_cursor = false;
@@ -1039,13 +1063,19 @@ public:
 
 	std::shared_ptr<litehtml::element> create_element(const litehtml::tchar_t *tag_name, const litehtml::string_map& attributes, const std::shared_ptr<litehtml::document>& doc) {
 		// printf("create_element: %s\n", tag_name);
+
+		/* This function does not create elements to be stored, it parses elements and their attributes at creation and handles specific behaviors for certain tags */
+
 		std::shared_ptr<litehtml::html_tag> element = std::shared_ptr<litehtml::html_tag>(new litehtml::html_tag(doc));
 		element->set_tagName(tag_name);
 		if (!attributes.empty()) {
+			/* Iterate over and store all attributes in the element */
 			std::map<litehtml::tstring,litehtml::tstring>::const_iterator it;
 			for (it=attributes.begin(); it!=attributes.end(); ++it) {
 				// printf("   set_attr: %s=%s\n", it->first.c_str(), it->second.c_str());
 				element->set_attr(it->first.c_str(), it->second.c_str());
+
+				/* Special behavior for meta tag */
 				if (!strcmp(tag_name, "meta")) {
 					if (it->first=="client-width") {
 						try {
@@ -1091,6 +1121,8 @@ public:
 
 			if (!strcmp(tag_name, "link")) {
 				if (!m_handle && element->get_attr("type") && !strcmp(element->get_attr("type"), "binary/elf")){
+					/* Save a reference to a linked external elf
+						NOTICE: only the first one found will be loaded */
 					m_handle = dlopen((m_directory+element->get_attr("href")).c_str(), RTLD_LAZY);
 					if (!m_handle) {
 						printf("%s\n", dlerror());
@@ -1099,9 +1131,11 @@ public:
 			} else if (!strcmp(tag_name, "text") && element->get_attr("href")) {
 				std::string filename = element->get_attr("href");
 				if (!strcmp(filename.substr(filename.find_last_of(".") + 1).c_str(), "elf")) {
+					/* Check m_handle, as .elf references should only work if external functions were loaded into m_handle */
 					if(m_handle && element->get_attr("type") && !strcmp(element->get_attr("type"), "function/always_run")) {
 						std::string target = element->get_attr("target");
 						if (!m_functions.count(target)) {
+							/* Store an always_run function to be executed each update */
 							void *function = dlsym(m_handle, target.c_str());
 							if (function) {
 								m_functions[target] = function_structure_t({function, false, element->get_attr("rel") ? !strcmp(element->get_attr("rel"),"string") : false, element->get_attr("id")?element->get_attr("id"):""});
@@ -1111,11 +1145,16 @@ public:
 				}
 			}
 		}
+
+		/* NOTICE: we do not return a reference to the element.. Let LiteHtml handle that internally or else it breaks everything */
 		return 0;
 	}
 
 	void get_media_features(litehtml::media_features& media) const {
 		// printf("get_media_features\n");
+
+		/* TODO: This info not necessarily true for all machines/screens,
+			maybe can create system with a properties file to be loaded on startup. */
 		litehtml::position client;
 		get_client_rect(client);
 		media.type = litehtml::media_type_screen;
