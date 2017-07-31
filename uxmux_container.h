@@ -15,6 +15,7 @@
 #include <ft2build.h>
 #include FT_FREETYPE_H
 
+/* Backup system if font isnt found, maybe not to be used in final product */
 #define SYSTEM_FONT_DIR "/usr/share/fonts/truetype/dejavu/"
 
 /* No scrollbars by default */
@@ -633,6 +634,10 @@ public:
 				/* Note we never save fonts using modalt so no need to check when loading */
 			}
 
+
+			/* Try to find the font
+				TODO:
+				NOTE: use of SYSTEM_FONT_DIR may not be needed */
 			if (!isdefault) {
 				if (FT_New_Face(m_library, (m_font_directory+name+mod+".ttf").c_str(), 0, &m_face))
 				if (FT_New_Face(m_library, (m_font_directory+name+mod+".otf").c_str(), 0, &m_face)) {

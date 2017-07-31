@@ -34,9 +34,13 @@ void render(litehtml::uint_ptr hdc, litehtml::document::ptr doc, uxmux_container
 
 			// printf("rendering..\n");
 			doc->render(static_cast<int>(vinfo->xres));
+
 			// printf("drawing..\n");
 			// printf("   xscroll=%d, yscroll=%d\n", painter->get_x_scroll(), painter->get_y_scroll());
+
+			/* Specify a clip to make sure we only compute objects in visible portion of screen */
 			litehtml::position clip({0,0,static_cast<int>(vinfo->xres),static_cast<int>(vinfo->yres)});
+			/* Draw to the back buffer, passing the screen scroll info and clip */
 			doc->draw(painter->get_back_buffer(),painter->get_x_scroll(),painter->get_y_scroll(),&clip);
 		}
 
@@ -72,10 +76,10 @@ bool update(litehtml::document::ptr doc, uxmux_container* painter, unsigned char
 	litehtml::position::vector redraw_box;
 	*redraw = painter->update_scrollbars(doc, x, y, click_ie);
 	*redraw |= doc->on_mouse_over(x-painter->get_x_scroll(), y-painter->get_y_scroll(), /*client_x*/x-painter->get_x_scroll(), /*client_y*/y-painter->get_y_scroll(), redraw_box);
-	if (click_ie & MOUSE_LEFT_CLICK) {
+	if (click_ie & MOUSE_LEFT_CLICK) { // Handle mouse click
 		*is_clicked=true;
 		*redraw |= doc->on_lbutton_down(x-painter->get_x_scroll(), y-painter->get_y_scroll(), /*client_x*/x-painter->get_x_scroll(), /*client_y*/y-painter->get_y_scroll(), redraw_box);
-	} else if (*is_clicked) {
+	} else if (*is_clicked) { // Handle mouse release
 		*is_clicked = false;
 		*redraw |= doc->on_lbutton_up(x-painter->get_x_scroll(), y-painter->get_y_scroll(), /*client_x*/x-painter->get_x_scroll(), /*client_y*/y-painter->get_y_scroll(), redraw_box);
 	}
@@ -86,7 +90,7 @@ bool update(litehtml::document::ptr doc, uxmux_container* painter, unsigned char
 	return click_ie & MOUSE_RIGHT_CLICK;
 }
 
-/* Get framebuffer as a drawable object */
+/* Get framebuffer as a drawable object and get associated screeninfo variables */
 litehtml::uint_ptr get_drawable(struct fb_fix_screeninfo *_finfo, struct fb_var_screeninfo *_vinfo) {
 	struct fb_fix_screeninfo finfo;
 	struct fb_var_screeninfo vinfo;
@@ -120,6 +124,8 @@ litehtml::uint_ptr get_drawable(struct fb_fix_screeninfo *_finfo, struct fb_var_
 		if MOUSE_ABS: x, y treated as precise coordinates
 			else they are treated as change in position
 */
+/* Handles a mouse input
+	TODO: This will be made obsolete as we change over to touch screen input, unless the final user would use a mouse */
 unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned char last_click) {
 	if (!mcf || !mmf) return MOUSE_INVALID;
 
@@ -131,9 +137,14 @@ unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned ch
 	bool y_flag(false), x_flag(false);
 	int x(*x_ret), y(*y_ret);
 
+	/* The width and height of the target screen
+		TODO: probably should have just used dimensions
+			from uxmux_container's m_client_width/height */
 	#define TARGET_X 800.0f
 	#define TARGET_Y 600.0f
 
+	/* Screen correction dimmensions, very unique to keelins VM screen..
+		Only used in exact mouse format (MOUSE_ABS) */
 	#define MX_MIN 184.0f
 	#define MX_MAX 65391.0f
 	#define MY_MIN 245.0f
@@ -173,11 +184,20 @@ unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned ch
 	bool y_exact = false, x_exact = false;
 
 	/* Update mouse movement */
+	/* TODO: The y/x_flag thing is not needed as instead of `while (!move_ie.type)` we can just do
+			`while (move_ie.type!=MOUSE_ABS && move_ie.type!=MOUSE_REL)` from the start.
+				Not making the change now as I don't have time to test, in case it breaks something */
 	if (select(mmf + 1, &read_fds, &write_fds, &except_fds, &timeout) == 1) {
 		read(mmf, &move_ie, sizeof(struct input_event));
+
+		/* Read file until we get non-zero type info */
+		/* TODO: Are we always guaranteed a non-zero type somewhere in the file?
+			or could this be safer in a select statement also? (i.e safe from while loop freeze) */
 		while (!move_ie.type)
 			read(mmf, &move_ie, sizeof(struct input_event));
+
 		// printf("time %ld.%06ld\ttype %d\tcode %d\tvalue %d\n", move_ie.time.tv_sec, move_ie.time.tv_usec, move_ie.type, move_ie.code, move_ie.value);
+		/* Record x or y value if valid type */
 		if ((move_ie.type==MOUSE_ABS || move_ie.type==MOUSE_REL) && move_ie.code==1) {
 			y = move_ie.value;
 			y_flag = true;
@@ -189,9 +209,12 @@ unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned ch
 		}
 		/* Set timeout to 1.0 microseconds */
 		fd_ready_select(mmf, 0, 1);
+		/* Keep trying until a valid type is found (or until select timeout) */
 		while (!y_flag || !x_flag) {
 			if (select(mmf + 1, &read_fds, &write_fds, &except_fds, &timeout) == 1) {
 				read(mmf, &move_ie, sizeof(struct input_event));
+
+				/* Filter out all non valid types */
 				while (move_ie.type!=MOUSE_ABS && move_ie.type!=MOUSE_REL) {
 					/* Set timeout to 1.0 microseconds */
 					fd_ready_select(mmf, 0, 1);
@@ -200,6 +223,7 @@ unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned ch
 					else break;
 				}
 				// printf("time %ld.%06ld\ttype %d\tcode %d\tvalue %d\n", move_ie.time.tv_sec, move_ie.time.tv_usec, move_ie.type, move_ie.code, move_ie.value);
+				/* Record x or y value if valid type */
 				if (move_ie.type && move_ie.code==1 && !y_flag) {
 					y = move_ie.value;
 					y_flag = true;
@@ -215,6 +239,11 @@ unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned ch
 		}
 		/* Set timeout to 10.0 microseconds */
 		fd_ready_select(mmf, 0, 10);
+		/* Clear out extra data in file
+			TODO:
+			WARNING: (Potential to freeze if mouse file gets data faster than this can dump,
+				but this whole function isn't needed in final product anyways,
+				as we will switch to touch input, so not worried now) */
 		while(1) {
 			if (select(mmf + 1, &read_fds, &write_fds, &except_fds, &timeout) == 1) {
 				read(mmf, &move_ie, sizeof(struct input_event));
@@ -224,6 +253,7 @@ unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned ch
 		}
 	}
 
+	/* Fix the y value in an appropriate range */
 	if (y_exact && y_flag) {
 		if (y>MY_MAX)y=MY_MAX;
 		if (y<MY_MIN)y=MY_MIN;
@@ -231,12 +261,13 @@ unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned ch
 		y = static_cast<float>(y-MY_MIN)/(MY_MAX-MY_MIN)*TARGET_Y;
 		if (y>7) *y_ret = y;
 	} else if (y_flag) {
-		*y_ret += y*120;
+		*y_ret += y;
 
-		if (*y_ret>MY_MAX)*y_ret=MY_MAX;
-		if (*y_ret<MY_MIN)*y_ret=MY_MIN;
+		if (*y_ret>TARGET_Y)*y_ret=TARGET_Y;
+		if (*y_ret<0)*y_ret=0;
 	}
 
+	/* Fix the x value in an appropriate range */
 	if (x_exact && x_flag) {
 		if (x>MX_MAX)x=MX_MAX;
 		if (x<MX_MIN)x=MX_MIN;
@@ -244,10 +275,10 @@ unsigned char handle_mouse(int mcf, int mmf, int* x_ret, int* y_ret, unsigned ch
 		x = static_cast<float>(x-MX_MIN)/(MX_MAX-MX_MIN)*TARGET_X;
 		if (x>11) *x_ret = x;
 	} else if (x_flag) {
-		*x_ret += x*120;
+		*x_ret += x;
 
-		if (*x_ret>MX_MAX)*x_ret=MX_MAX;
-		if (*x_ret<MX_MIN)*x_ret=MX_MIN;
+		if (*x_ret>TARGET_X)*x_ret=TARGET_X;
+		if (*x_ret<0)*x_ret=0;
 	}
 
 	/* Return the click type while forcing the invalid flag low */
